@@ -348,6 +348,8 @@ extension EditorView {
         case #selector(EditorView.toggleWordWrap(_:)):
             menuItem.state = wordWrapEnabled ? .on : .off
             return true
+        case #selector(EditorView.revertHunk(_:)):
+            return canRevertHunk
         case #selector(EditorView.toggleMacroRecording(_:)):
             // The title carries the state, so there is no need for a checkmark or a second
             // menu item (T94).

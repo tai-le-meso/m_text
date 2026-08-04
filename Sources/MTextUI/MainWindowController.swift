@@ -33,6 +33,24 @@ public final class MainWindowController: NSWindowController {
     /// Diagnostics the last build produced, for the `MTEXT_SMOKE_TEST` hook (T95). Same
     /// reason as above: the hook lives in the executable target and can't see `BuildPanel`,
     /// which stays internal.
+    /// Diff marks on the focused editor, for the `MTEXT_SMOKE_TEST` hook (T102).
+    public var smokeTestDiffMarkCount: Int { editor.diffMarks.count }
+    /// Puts the caret on `line` and reverts the hunk there, for the smoke hook. Takes the
+    /// line rather than a `Selection` so the hook doesn't need MTextCore's types.
+    public func smokeTestRevertHunk(atLine line: Int) {
+        editor.didMoveSelection(Selection(caret: Position(line: line, column: 0)))
+        editor.revertHunk(nil)
+    }
+    /// Loads a file into the focused tab, so the hook can exercise the baseline.
+    public func smokeTestOpen(_ url: URL) { open(url: url) }
+    /// Focused editor's text, for the smoke hook. Going through the controller rather than
+    /// hunting the view tree: a pane holds one `EditorView` per tab, so "the first editor in
+    /// this pane" is not necessarily the active one.
+    public var smokeTestEditorText: String {
+        get { editor.text }
+        set { editor.text = newValue }
+    }
+
     public var smokeTestBuildDiagnostics: [(file: String, line: Int, column: Int)] {
         buildPanel.diagnostics.map { ($0.file, $0.line, $0.column) }
     }
@@ -1037,6 +1055,7 @@ public final class MainWindowController: NSWindowController {
         if let url = tab.editor.document.fileURL {
             do {
                 try tab.editor.document.save(to: url)
+                tab.editor.resetDiffBaseline()
                 pane(owning: tab)?.refreshTabBar()
                 completion(true)
             } catch {
@@ -1375,6 +1394,9 @@ public final class MainWindowController: NSWindowController {
     private func write(to url: URL?) {
         do {
             try textDocument.save(to: url)
+            // After a save the file on disk *is* the buffer, so the diff baseline moves
+            // with it (T102).
+            editor.resetDiffBaseline()
             window?.isDocumentEdited = false
             refreshChrome()
             refreshTabBar()

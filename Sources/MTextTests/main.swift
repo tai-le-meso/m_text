@@ -34,6 +34,7 @@ var suites: [TestSuite] = [
     FindInFilesTests.suite,
     FindResultsTests.suite,
     ReplaceInFilesTests.suite,
+    LineDiffTests.suite,
 ]
 
 // The performance budgets are written for an optimised build; a debug build is

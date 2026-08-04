@@ -136,6 +136,11 @@ changed on disk since the preview was built are skipped rather than overwritten,
 skipped or failed files are reported. Line endings are preserved. There is no undo for an
 applied replace, which is why the confirmation is not optional.
 
+**Diff gutter** — coloured bars in the gutter show what you've changed since the file was
+opened or last saved: green for added lines, blue for modified, and a red wedge where lines
+were deleted. **Edit ▸ Revert Hunk** puts the block under the cursor back to the saved
+version, as a normal undoable edit. This compares against the file on disk, not against git.
+
 Known gaps, tracked in TASKS.md: the canvas is a single NSView, so documents with millions
 of lines need the custom scroller.
 
@@ -281,6 +286,7 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   FindInFiles.swift    streaming tree search: excludes, binary skip, limits
   FindResults.swift    results text + buffer-line -> match mapping
   ReplaceInFiles.swift plan/apply replace with a staleness guard
+  LineDiff.swift       line diff vs disk: trimmed + capped LCS, hunks and marks
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

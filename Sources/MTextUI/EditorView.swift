@@ -140,6 +140,14 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
 
+    // MARK: - Diff gutter (T102)
+
+    /// The file's lines as last loaded or saved. nil for an unsaved buffer, which has
+    /// nothing to diff against.
+    var diffBaseline: [String]?
+    var cachedDiffMarks: [Int: DiffMark] = [:]
+    var cachedDiffGeneration: UInt64?
+
     // MARK: - Find results (T64)
 
     /// Set when this editor is showing find-in-files results, which turns it into a
@@ -318,6 +326,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     public func loadFile(_ url: URL) throws {
         try document.load(from: url)
         didReplaceDocument()
+        resetDiffBaseline()
     }
 
     /// T85 (hot exit): restores unsaved content stashed by the session at last quit.
@@ -787,6 +796,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         for lineIndex in visible.lines {
             // A triangle only where something can actually fold, so the gutter isn't a
             // column of decoration (T92).
+            drawDiffMark(forLine: lineIndex)
             if folds.isFolded(startLine: lineIndex) {
                 drawFoldTriangle(forLine: lineIndex, folded: true)
             } else if foldRegion(at: lineIndex) != nil {
