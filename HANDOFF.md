@@ -125,7 +125,7 @@ you need it and remove it after.
 - Sidebar duplicates `FileIndex`'s directory-watching logic rather than sharing it
   (accepted tradeoff, documented in TASKS.md T82).
 - Content-based syntax auto-detect only covers the batch-1 languages.
-- No word wrap (T28, deferred to land with folding); no find-in-files (T63–T65).
+- No find-in-files (T63–T65).
 - Multi-window z-order is only approximately restored.
 
 ## Recurring bug classes and working practices → `KNOWLEDGE.md`

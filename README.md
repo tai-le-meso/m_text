@@ -123,9 +123,8 @@ is entirely offline: it copies from a path you choose and never fetches.
 all matches highlighted, ⌘G/⇧⌘G cycling, Replace and Replace All with `$1`/`\1` capture
 references, and Find All to put a cursor on every match.
 
-Known gaps, tracked in TASKS.md:
-no find-in-files (T63–T65). The canvas is a single NSView, so documents with millions of
-lines need the custom scroller.
+Known gaps, tracked in TASKS.md: no find-in-files (T63–T65). The canvas is a single
+NSView, so documents with millions of lines need the custom scroller.
 
 **Navigation**
 
