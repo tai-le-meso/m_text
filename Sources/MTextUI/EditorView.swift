@@ -140,6 +140,24 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
 
+    // MARK: - Minimap (T93)
+
+    /// The strip beside this editor, if the window built one. Weak: the minimap is owned by
+    /// the tab's container view, and it holds a weak reference back, so neither keeps the
+    /// other alive.
+    weak var minimap: Minimap?
+
+    /// `minimap` from the settings stack. Toggling it shows/hides the strip, which the
+    /// window controller wires up.
+    public var minimapEnabled = false {
+        didSet { if minimapEnabled != oldValue { onMinimapVisibilityChanged?() } }
+    }
+    public var onMinimapVisibilityChanged: (() -> Void)?
+
+    /// Repaints the strip. Cheap enough to call from every edit, scroll and highlight batch:
+    /// the minimap culls to its dirty rect and samples rows past a few thousand.
+    func refreshMinimap() { minimap?.needsDisplay = true }
+
     // MARK: - Word wrap (T28)
 
     /// Folds *and* wrap, combined. Every screen position goes through this.
@@ -392,6 +410,8 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     }
 
     @objc private func clipBoundsChanged() {
+        // The viewport box tracks the scroll position (T93).
+        refreshMinimap()
         hideCompletionsOnViewportChange()
         // Cursor rects are derived from the viewport origin whether or not the gutter
         // is visible, so they go stale on any horizontal scroll.
@@ -777,6 +797,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         // T91: keep an active snippet's stop ranges in step, or end it if this edit came
         // from a path that can't describe itself (see `pendingSnippetEdit`).
         rowMapDidEdit(fromLine: firstChangedLine)
+        refreshMinimap()
         foldsDidEdit(fromLine: firstChangedLine)
         if snippetSession != nil, !isApplyingSnippetMirrors {
             if let pending = pendingSnippetEdit {

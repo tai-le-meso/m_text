@@ -227,6 +227,12 @@ hiding the cursor opens by itself. Folds aren't saved across restarts yet.
 running off the edge, cursor up/down steps through wrapped rows, and the gutter numbers the
 line once rather than each row. Continuation rows aren't indented to match their line yet.
 
+**Minimap** — **View ▸ Minimap**, or `"minimap": true`. A downsampled overview drawn from the
+syntax colours, so it reads as the shape of the code. It follows folding and wrapping, so what
+it shows matches what's on screen. Click or drag to jump — the row you point at is centred —
+or scroll over it. Large files compress into the strip rather than scrolling it, so the whole
+file stays represented.
+
 ## Layout
 
 ```
@@ -244,6 +250,8 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   Folding.swift        indent-based fold regions
   WordWrap.swift       greedy word-aware line breaking, in character columns
   RowMap.swift         folds + wrap unified: document line <-> screen row
+Sources/MTextUI/
+  Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller
 Sources/m_text/      executable: app bootstrap + programmatic main menu
 Sources/MTextTestKit/  assertion harness + runner (XCTest replacement)

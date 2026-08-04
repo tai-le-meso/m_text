@@ -175,10 +175,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "turning it off restores both exactly")
             }
 
+            /// T93: the minimap takes width from the editor, so turning it on must shrink
+            /// the editor's viewport and turning it off must give it back exactly — the same
+            /// class of geometry that broke for folding and wrapping.
+            func minimapCheck() {
+                let panes = paneViews()
+                guard let editor = panes.first.flatMap({ descendants(of: $0, named: "EditorView").first })
+                        as? EditorView,
+                      let strip = panes.first.flatMap({ descendants(of: $0, named: "Minimap").first })
+                else {
+                    check(false, "found an editor and a minimap")
+                    return
+                }
+                editor.minimapEnabled = false
+                editor.layoutSubtreeIfNeeded()
+                let widthWithout = editor.enclosingScrollView?.frame.width ?? 0
+                check(strip.frame.width == 0, "minimap is collapsed when off (\(strip.frame.width))")
+
+                editor.minimapEnabled = true
+                controller.window?.contentView?.layoutSubtreeIfNeeded()
+                check(strip.frame.width > 50, "minimap takes real width when on (\(strip.frame.width))")
+                let widthWith = editor.enclosingScrollView?.frame.width ?? 0
+                check(widthWith < widthWithout,
+                      "and the editor gives up that width (\(widthWithout) -> \(widthWith))")
+
+                editor.minimapEnabled = false
+                controller.window?.contentView?.layoutSubtreeIfNeeded()
+                check((editor.enclosingScrollView?.frame.width ?? 0) == widthWithout,
+                      "turning it off restores the editor width exactly")
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
                 { wrapCheck() },
+                { minimapCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")
