@@ -52,20 +52,24 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T93 Minimap | ✅ (compresses rather than scrolls on large files — see TASKS.md) |
 | T94 Macros | ✅ (replay is not a single undo step — see TASKS.md) |
 | T95 Build systems | ✅ (diagnostics parsed at exit, not streamed — see TASKS.md) |
+| T63 Find in Files | ✅ **engine only** — no UI until T64 |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
 Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
 `RowMap` so it agrees with folding and wrapping), **T94 ✅** (macros) and **T95 ✅** (build
-systems). **Phase 7 is complete.** Next is **Phase 8 — Extensibility & polish** (T100–T105),
-per `TASKS.md`; the remaining gaps elsewhere are T63–T65 (find in files) and the partial
-T16/T17/T19 from Phase 1.
+systems). **Phase 7 is complete.**
+
+**T63 (Find in Files engine) has landed but has no UI** — `FindInFilesSearch` is reachable
+only from tests until **T64 (results buffer)**, which is the natural next task: it is what
+makes the feature usable, and the engine was built to stream into it. Then T65 (replace in
+files). After that, **Phase 8** (T100–T105), plus the partial T16/T17/T19 from Phase 1.
 
 ⚠️ **T95 is the only feature that runs an external process.** It executes solely from the
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **354 passed, 1338 assertions** — run, along with `swift build -c release`,
-as of T95. (The 8 `SessionTests` that had never been executed when this file was first
+Test status: **368 passed, 1366 assertions** — run, along with `swift build -c release`,
+as of T63. (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -88,6 +92,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
   coalescing), `EditorView+Macros.swift` (hooks in `insertText`/`doCommand`, replay).
 - **T95** build systems: `BuildSystem.swift` (parse + variables + `file_regex`, no execution),
   `BuildRunner.swift` (the only `Process` launch), `BuildPanel.swift` (output + F4).
+- **T63** find in files *engine*: `FindInFiles.swift` — streams matches, reuses
+  `FileIndex.walk` and `SearchMatcher`. **No UI yet (T64).**
 
 ---
 
