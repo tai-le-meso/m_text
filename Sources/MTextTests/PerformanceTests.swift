@@ -17,6 +17,7 @@ enum PerformanceTests {
         ("fuzzy ranking 100k entries per keystroke is fast", testFuzzyRanking100kEntriesIsFast),
         ("autocomplete on a large buffer stays within a keystroke", testCompletionOnLargeBufferIsFast),
         ("word-wrap row map rebuilds and patches fast enough", testRowMapIsFast),
+        ("find in files sweeps a real tree quickly", testFindInFilesIsFast),
     ])
 
     private static func makeLargeText(lines: Int) -> String {
@@ -167,5 +168,36 @@ enum PerformanceTests {
         let lookupElapsed = Date().timeIntervalSince(lookupStart)
         expectLessThan(lookupElapsed, 0.5,
                        String(format: "5000 row lookups took %.3fs", lookupElapsed))
+    }
+
+    /// T63's budget. Find in Files reads every file in the tree, so it is bounded by I/O
+    /// rather than by the matcher — the point of measuring is to catch a regression that
+    /// makes it re-read or re-scan, not to chase a specific wall-clock number.
+    static func testFindInFilesIsFast() {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("mtext-fif-perf-\(UUID().uuidString)")
+            .resolvingSymlinksInPath()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+
+        // 400 files x 200 lines — a small-to-mid project.
+        let body = (0 ..< 200).map { "let value\($0) = compute(\($0)) // needle marker" }
+            .joined(separator: "\n")
+        for index in 0 ..< 400 {
+            let directory = root.appendingPathComponent("pkg\(index % 20)")
+            try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try? Data(body.utf8).write(to: directory.appendingPathComponent("file\(index).swift"))
+        }
+
+        let start = Date()
+        let result = FindInFilesSearch().runSynchronously(
+            FindInFilesRequest(query: .literal("compute"), roots: [root], maximumMatches: 1_000_000))
+        let elapsed = Date().timeIntervalSince(start)
+
+        expectEqual(result.summary.filesSearched, 400)
+        expectEqual(result.matches.count, 400 * 200)
+        expectFalse(result.summary.hitMatchLimit)
+        expectLessThan(elapsed, 5.0,
+                       String(format: "sweeping 400 files / 80k lines took %.2fs", elapsed))
     }
 }

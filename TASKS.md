@@ -79,13 +79,45 @@ scanned at launch so drop-in grammars override the built-ins.
 | T60 | Find bar: fields, regex/case/word/wrap/preserve-case toggles, count badge | M | ✅ (relocated — see below) |
 | T61 | Incremental in-buffer search, all-match highlight, ⌘G/⇧⌘G cycle | M | ✅ |
 | T62 | Replace / Replace All with `$1`/`\1` captures, preserve-case | M | ✅ (in-selection scope modelled, no UI yet) |
-| T63 | Find in Files: parallel file walker (excludes binaries/patterns), streaming matcher | L | — |
+| T63 | Find in Files: parallel file walker (excludes binaries/patterns), streaming matcher | L | ✅ engine only — no UI until T64 |
 | T64 | Results buffer: grouped by file, context lines, double-click → jump, live append | M | — |
 | T65 | Replace in Files with preview + confirm | M | — |
 
 Search is line-oriented, so a regex cannot span a line break — a deliberate consequence
 of keeping memory bounded on large files. `SearchQuery` is the single model behind ⌘D,
 ⌘E and the find bar, so options behave identically everywhere.
+
+**T63 detail (delivered — engine only):** `Sources/MTextCore/FindInFiles.swift` sweeps a
+folder tree and **streams** matches rather than collecting them: a sweep over a large tree
+takes long enough that waiting for it to finish before showing anything would feel broken,
+and T64's results buffer is meant to append live. Batches are emitted per *file* rather than
+per match — a file with 500 hits would otherwise hop to the main queue 500 times.
+
+Reuses `FileIndex.walk` rather than carrying a second directory traversal with its own
+exclude handling: the two would drift, and Goto Anything's idea of what is in the project
+should match Find in Files'. Matching reuses `SearchMatcher`, so regex, case and whole-word
+behave identically to the find bar — there is no second search implementation to keep in
+step.
+
+**Binary detection is a NUL byte in the first 8 KB**, not an extension list: extension lists
+miss unknown formats and wrongly exclude text files with odd names, whereas essentially no
+text encoding this app reads contains an embedded NUL. A file that isn't valid UTF-8 falls
+back to Latin-1 — the same fallback `TextEncoding` uses on load — rather than being silently
+skipped, since skipping would hide real results. Oversized files are skipped *before* being
+read, not after.
+
+Both limits report themselves: `FindInFilesSummary` carries `hitMatchLimit` and
+`wasCancelled` alongside the counts, so the UI can say *why* results stopped rather than
+implying the tree was fully searched. The sweep takes an `emit` closure rather than posting
+to the main queue directly, which is what makes the matching, skipping and limit rules
+testable on the calling thread (`runSynchronously`).
+
+Known gaps: **no UI yet — that is T64**, so the engine is currently reachable only from
+tests. The walk is sequential rather than parallel across files (the perf test sweeps 400
+files / 80k lines in ~0.2s, so concurrency has not been worth the complexity yet; the task
+title says "parallel" and this is the deliberate departure). No include/exclude glob
+patterns beyond `FileIndex`'s plain-name excludes, and no search-in-open-buffers-first. 14
+tests plus a perf case.
 
 **T60 relocation (post-Phase 6):** the find bar originally sat at the window bottom as a
 sibling of the whole pane split view, so showing it resized *every* pane and tab bar. It
