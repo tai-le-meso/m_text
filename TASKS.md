@@ -819,7 +819,7 @@ hermetic.
 | # | Task | Size | Status |
 |---|---|---|---|
 | T100 | JavaScriptCore plugin host: command registration, event listeners, view/edit API | L | |
-| T101 | Spell check via NSSpellChecker on scope-filtered regions (strings/comments/text) | M | |
+| T101 | Spell check via NSSpellChecker on scope-filtered regions (strings/comments/text) | M | ✅ |
 | T102 | Diff gutter vs disk (incremental diff), revert-hunk command | M | ✅ |
 | T103 | Phantoms/annotations: inline attachment layout in EditorView | L | |
 | T104 | Vi mode (modal command layer over command registry) | L | |
@@ -856,6 +856,44 @@ with unsaved changes restored by hot exit; no VCS integration (this is diff-vs-d
 diff-vs-HEAD, which is what Sublime's own gutter does too); no next/previous-hunk navigation;
 and no intra-line character diff — a changed line is marked whole. 15 tests in `LineDiffTests`
 plus four smoke-test assertions covering open → edit → revert against a real file.
+
+**T101 detail (delivered):** spell-checking a source file wholesale is useless — every
+identifier and keyword becomes a "misspelling" and the squiggles turn into noise you learn to
+ignore. `Sources/MTextCore/SpellCheckScopes.swift` restricts checking to `comment.*`,
+`string.*` and `text.*` using the scope information the highlighter already produces, and is
+pure so the filtering rules are testable without a spell checker, a view or a dictionary.
+Adjacent checkable spans are merged, because a comment is often several spans (punctuation,
+then content) and a word straddling the boundary would otherwise be reported misspelled.
+
+**A design flaw the smoke test caught.** The first version followed
+`EditorView.attributedLine`'s nil-vs-empty convention: nil spans meant "not highlighted yet",
+so nothing was checked. That is right for code — no squiggles while the background sweep
+catches up — but it meant spell check did **nothing at all** on a plain-text file that never
+produces spans, which is the main thing anyone turns it on for. `checkableRanges` now takes
+the document's `baseScope` and checks the whole line when *that* is prose, so `text.plain`
+works immediately while `source.swift` still waits for real spans.
+
+`NSSpellChecker` is a cross-process call, so results are cached per line against
+`TextDocument.generation` — the same staleness mechanism the diff gutter and buffer-word index
+use — and only lines actually on screen are ever checked. The `wrap: false` in the scan loop
+matters: with wrapping it would loop back to the start of the string and never terminate. The
+loop also stops once the checker walks past the region it was asked about, since it scans the
+whole string rather than the slice — otherwise a misspelling in the code *after* a comment
+would be reported.
+
+Squiggles are drawn as a dotted underline rather than a sine wave (visually indistinguishable
+at editor font sizes, one fill per dot instead of a bezier per word) and are clipped to each
+wrapped row's columns, so a misspelling on a wrapped line underlines on the row it appears on.
+**F6** toggles, **⌃F6** jumps to the next misspelling anywhere in the document (not just on
+screen — the point is finding the one you can't see), and `spellingSuggestions()` exposes
+corrections. Setting `spell_check`, off by default: most files in a code editor are not prose.
+
+Known gaps: suggestions are computed but not yet wired to a context menu (no right-click
+"Correct to…"), no per-language selection or user dictionary UI, no "ignore word in this
+document", and the checker uses the system language rather than anything set per file. 10
+tests in `SpellCheckScopesTests` plus three smoke-test assertions against the real
+`NSSpellChecker` — using unambiguous nonsense words, since macOS's dictionary accepts some
+plausible typos and the assertion would otherwise depend on the system dictionary.
 
 ## Cross-cutting (continuous)
 

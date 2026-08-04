@@ -149,6 +149,8 @@ public struct EditorSettings: Equatable {
     public var wrapWidth: Int
     /// T93 — the downsampled overview strip beside the editor.
     public var minimap: Bool
+    /// T101 — spell check comments, strings and prose.
+    public var spellCheck: Bool
 
     /// What one press of Tab inserts (and what indent/outdent shift by). Tabs mode always
     /// inserts a single `\t` regardless of `tab_size` — the width of a tab is a rendering
@@ -182,6 +184,7 @@ public enum SettingsResolver {
         "word_wrap": .bool(false),
         "wrap_width": .int(0),
         "minimap": .bool(false),
+        "spell_check": .bool(false),
     ]
 
     public static var defaultLayer: SettingsLayer {
@@ -247,6 +250,9 @@ public enum SettingsResolver {
         // Show the minimap: a downsampled overview of the file beside the editor.
         "minimap": false,
 
+        // Spell-check comments, strings and prose (not code identifiers).
+        "spell_check": false,
+
         // Colour scheme by name, e.g. "Monokai". Omitted by default, which keeps
         // whichever scheme the app loaded at launch.
         // "color_scheme": "Monokai",
@@ -279,7 +285,8 @@ public enum SettingsResolver {
             autoComplete: value("auto_complete")?.boolValue ?? true,
             wordWrap: value("word_wrap")?.boolValue ?? false,
             wrapWidth: max(0, value("wrap_width")?.intValue ?? 0),
-            minimap: value("minimap")?.boolValue ?? false
+            minimap: value("minimap")?.boolValue ?? false,
+            spellCheck: value("spell_check")?.boolValue ?? false
         )
     }
 

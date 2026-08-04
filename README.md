@@ -141,6 +141,10 @@ opened or last saved: green for added lines, blue for modified, and a red wedge 
 were deleted. **Edit ▸ Revert Hunk** puts the block under the cursor back to the saved
 version, as a normal undoable edit. This compares against the file on disk, not against git.
 
+**Spell check** — **F6** turns it on, **⌃F6** jumps to the next misspelling. It checks
+comments, strings and prose only, using the syntax scopes, so code identifiers aren't
+underlined into noise. Set `"spell_check": true` to have it on by default.
+
 Known gaps, tracked in TASKS.md: the canvas is a single NSView, so documents with millions
 of lines need the custom scroller.
 
@@ -287,6 +291,7 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   FindResults.swift    results text + buffer-line -> match mapping
   ReplaceInFiles.swift plan/apply replace with a staleness guard
   LineDiff.swift       line diff vs disk: trimmed + capped LCS, hunks and marks
+  SpellCheckScopes.swift  which parts of a line are prose worth checking
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

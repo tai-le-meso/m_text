@@ -309,6 +309,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "and cleared the marks (got \(controller.smokeTestDiffMarkCount))")
             }
 
+            /// T101: exercises the real NSSpellChecker. The unit tests cover which ranges
+            /// are eligible; this covers that the checker is actually consulted, that a
+            /// correct word is left alone, and that it is off unless asked for.
+            func spellCheckCheck() {
+                // Unambiguous nonsense rather than plausible typos: macOS's dictionary
+                // accepts some real misspellings ("mispelling" passes), which would make the
+                // assertion depend on the system dictionary rather than on our code.
+                controller.smokeTestEditorText = "thiss worrd andd anotherr zzqqxx\n"
+                controller.smokeTestSpellCheckEnabled = false
+                check(controller.smokeTestMisspellingCount(onLine: 0) == 0,
+                      "nothing is checked while spell check is off")
+
+                controller.smokeTestSpellCheckEnabled = true
+                let found = controller.smokeTestMisspellingCount(onLine: 0)
+                check(found >= 2, "found the misspellings in a plain-text line (got \(found): \(controller.smokeTestMisspellingDescription(onLine: 0)))")
+
+                controller.smokeTestEditorText = "this sentence is entirely correct\n"
+                check(controller.smokeTestMisspellingCount(onLine: 0) == 0,
+                      "a correct line reports nothing")
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
@@ -318,6 +339,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 { buildCheck() },
                 { buildResultCheck() },
                 { diffCheck() },
+                { spellCheckCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")
