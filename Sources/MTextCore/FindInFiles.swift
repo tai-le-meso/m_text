@@ -9,13 +9,23 @@ public struct FileMatch: Equatable {
     public let length: Int
     /// The whole line, for showing context without re-reading the file.
     public let lineText: String
+    /// Lines immediately before and after, when the request asked for context.
+    ///
+    /// Captured during the sweep rather than re-read when the results buffer is built: the
+    /// file is already in memory at that point, and re-opening every matched file later
+    /// would both cost more and risk showing text that changed in between.
+    public let contextBefore: [String]
+    public let contextAfter: [String]
 
-    public init(url: URL, line: Int, column: Int, length: Int, lineText: String) {
+    public init(url: URL, line: Int, column: Int, length: Int, lineText: String,
+                contextBefore: [String] = [], contextAfter: [String] = []) {
         self.url = url
         self.line = line
         self.column = column
         self.length = length
         self.lineText = lineText
+        self.contextBefore = contextBefore
+        self.contextAfter = contextAfter
     }
 }
 
@@ -31,19 +41,23 @@ public struct FindInFilesRequest {
     /// large tree can't fill memory before anyone sees the first result.
     public var maximumMatches: Int
     public var maximumFiles: Int
+    /// Lines of surrounding context to capture with each match (T64).
+    public var contextLines: Int
 
     public init(query: SearchQuery,
                 roots: [URL],
                 excludedNames: Set<String> = FileIndex.defaultExcludedNames,
                 maximumFileSizeBytes: Int = 4 * 1024 * 1024,
                 maximumMatches: Int = 20_000,
-                maximumFiles: Int = 200_000) {
+                maximumFiles: Int = 200_000,
+                contextLines: Int = 0) {
         self.query = query
         self.roots = roots
         self.excludedNames = excludedNames
         self.maximumFileSizeBytes = maximumFileSizeBytes
         self.maximumMatches = maximumMatches
         self.maximumFiles = maximumFiles
+        self.contextLines = contextLines
     }
 }
 
@@ -149,13 +163,21 @@ public final class FindInFilesSearch {
             }
             summary.filesSearched += 1
 
-            for (index, line) in text.components(separatedBy: "\n").enumerated() {
+            let lines = text.components(separatedBy: "\n")
+            for (index, line) in lines.enumerated() {
                 for match in matcher.matches(inLine: index, text: line) {
+                    let context = request.contextLines
                     pending.append(FileMatch(url: entry.url,
                                              line: index,
                                              column: match.region.start.column,
                                              length: match.text.count,
-                                             lineText: line))
+                                             lineText: line,
+                                             contextBefore: context > 0
+                                                 ? Array(lines[max(0, index - context) ..< index])
+                                                 : [],
+                                             contextAfter: context > 0
+                                                 ? Array(lines[min(index + 1, lines.count) ..< min(index + 1 + context, lines.count)])
+                                                 : []))
                     summary.matchCount += 1
                     if summary.matchCount >= request.maximumMatches {
                         summary.hitMatchLimit = true

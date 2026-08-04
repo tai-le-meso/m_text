@@ -123,8 +123,15 @@ is entirely offline: it copies from a path you choose and never fetches.
 all matches highlighted, ⌘G/⇧⌘G cycling, Replace and Replace All with `$1`/`\1` capture
 references, and Find All to put a cursor on every match.
 
-Known gaps, tracked in TASKS.md: no find-in-files (T63–T65). The canvas is a single
-NSView, so documents with millions of lines need the custom scroller.
+**Find in Files** — **⇧⌘F**, then type a pattern. It sweeps the open project (or the folders
+of open tabs), skipping binaries and the usual `node_modules`/`.git` excludes, and streams
+results into a tab as they are found rather than making you wait for the sweep. Results are
+grouped by file with a line of context either side; **double-click** or press **Enter** on a
+match to jump straight to it. Regex, case and whole-word come from the find bar, so both
+searches mean the same thing by a pattern. Replace in Files is not built yet (T65).
+
+Known gaps, tracked in TASKS.md: the canvas is a single NSView, so documents with millions
+of lines need the custom scroller.
 
 **Navigation**
 
@@ -265,6 +272,8 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   RowMap.swift         folds + wrap unified: document line <-> screen row
   Macro.swift          .sublime-macro model, parser, recorder
   BuildSystem.swift    .sublime-build parsing, $variables, file_regex (no execution)
+  FindInFiles.swift    streaming tree search: excludes, binary skip, limits
+  FindResults.swift    results text + buffer-line -> match mapping
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

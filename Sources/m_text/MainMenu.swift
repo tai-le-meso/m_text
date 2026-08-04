@@ -174,6 +174,8 @@ private func findMenu() -> NSMenu {
     menu.addItem(withTitle: "Use Selection for Find",
                  action: #selector(EditorView.useSelectionForFind(_:)), keyEquivalent: "e")
     menu.addItem(.separator())
+    menu.addItem(item("Find in Files…", #selector(MainWindowController.findInFiles(_:)),
+                      "f", [.command, .shift]))
     menu.addItem(withTitle: "Find All",
                  action: #selector(EditorView.selectAllMatches(_:)), keyEquivalent: "")
 

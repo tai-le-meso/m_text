@@ -187,6 +187,93 @@ public final class MainWindowController: NSWindowController {
         refreshChrome()
     }
 
+    // MARK: - Find in Files (T63/T64)
+
+    private let findInFilesSearch = FindInFilesSearch()
+    /// The tab showing results, reused across searches so repeated searches don't pile up
+    /// tabs. Weak — closing it must not keep it alive.
+    private weak var findResultsTab: Tab?
+
+    /// ⇧⌘F — prompts for a pattern, then sweeps the project and streams results into a tab.
+    ///
+    /// The prompt is the existing `Palette` rather than a new multi-field panel: it already
+    /// handles focus, dismissal and Escape, and the alternative is a second search UI to
+    /// keep in step with the find bar. Options (regex, case, whole word) come from the find
+    /// bar's current state, so the two agree by construction.
+    @objc public func findInFiles(_ sender: Any?) {
+        guard let window else { return }
+        var pattern = ""
+        overlayPalette.onQueryChanged = { [weak self] query in
+            pattern = query
+            let roots = self?.fileIndexRoots() ?? []
+            let where_ = roots.isEmpty ? "no folder open" : roots.map(\.lastPathComponent).joined(separator: ", ")
+            self?.overlayPalette.setItems(query.isEmpty ? [] : [
+                PaletteItem(title: "Search for \u{201C}\(query)\u{201D}", subtitle: "in \(where_)", payload: 0),
+            ])
+        }
+        overlayPalette.onHighlightChanged = { _ in }
+        overlayPalette.onCommit = { [weak self] _ in self?.startFindInFiles(pattern: pattern) }
+        overlayPalette.onCancel = {}
+        overlayPalette.show(over: window, placeholder: "Find in Files")
+        overlayPalette.onQueryChanged?("")
+    }
+
+    private func startFindInFiles(pattern: String) {
+        guard !pattern.isEmpty else { return }
+        let roots = fileIndexRoots()
+        guard !roots.isEmpty else {
+            statusLabel.stringValue = "Open a folder or project to search in"
+            NSSound.beep()
+            return
+        }
+
+        // Inherit the find bar's options so ⇧⌘F and ⌘F agree about what the pattern means.
+        var query = findBar.query
+        query.pattern = pattern
+
+        var request = FindInFilesRequest(query: query, roots: roots,
+                                         excludedNames: FileIndex.defaultExcludedNames
+                                             .union(currentProject?.allExcludedNames ?? []))
+        request.contextLines = 1
+
+        let tab = findResultsTab ?? makeBlankTab(in: focusedPane)
+        findResultsTab = tab
+        var buffer = FindResultsBuffer()
+        tab.editor.findResults = buffer
+        tab.editor.onActivateResult = { [weak self] match in
+            self?.openAndJump(to: match.url, line: match.line, column: match.column)
+        }
+        tab.editor.text = "Searching for \u{201C}\(pattern)\u{201D}…\n"
+        activate(tab)
+        focusedPane.refreshTabBar()
+
+        findInFilesSearch.cancel()
+        findInFilesSearch.onMatches = { [weak self, weak tab] matches in
+            guard let tab else { return }
+            buffer.append(matches, contextLines: request.contextLines)
+            // Live append: the whole point of streaming is that long sweeps show results as
+            // they arrive rather than after.
+            tab.editor.text = buffer.text
+            tab.editor.findResults = buffer
+            self?.statusLabel.stringValue = "\(buffer.matchCount) matches in \(buffer.fileCount) files…"
+        }
+        findInFilesSearch.onFinish = { [weak self, weak tab] summary in
+            guard let tab else { return }
+            buffer.appendSummary(summary)
+            tab.editor.text = buffer.text
+            tab.editor.findResults = buffer
+            self?.statusLabel.stringValue = buffer.matchCount == 0
+                ? "No matches for \u{201C}\(pattern)\u{201D}"
+                : "\(buffer.matchCount) matches in \(buffer.fileCount) files"
+            self?.focusedPane.refreshTabBar()
+        }
+        findInFilesSearch.run(request)
+    }
+
+    @objc public func cancelFindInFiles(_ sender: Any?) {
+        findInFilesSearch.cancel()
+    }
+
     // MARK: - Build systems (T95)
 
     private let buildRunner = BuildRunner()
