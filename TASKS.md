@@ -823,7 +823,7 @@ hermetic.
 | T102 | Diff gutter vs disk (incremental diff), revert-hunk command | M | ✅ |
 | T103 | Phantoms/annotations: inline attachment layout in EditorView | L | |
 | T104 | Vi mode (modal command layer over command registry) | L | |
-| T105 | App icon, DMG packaging script (hdiutil), notarization docs (optional/offline OK) | S | |
+| T105 | App icon, DMG packaging script (hdiutil), notarization docs (optional/offline OK) | S | ✅ |
 
 
 **T102 detail (delivered):** `Sources/MTextCore/LineDiff.swift` diffs the buffer against the
@@ -894,6 +894,33 @@ document", and the checker uses the system language rather than anything set per
 tests in `SpellCheckScopesTests` plus three smoke-test assertions against the real
 `NSSpellChecker` — using unambiguous nonsense words, since macOS's dictionary accepts some
 plausible typos and the assertion would otherwise depend on the system dictionary.
+
+**T105 detail (delivered):** `make icon`, `make dmg`, and `DISTRIBUTION.md`. All of it runs
+offline with only the Command Line Tools.
+
+The icon is **drawn in code** (`Tools/make-icon.swift`, CoreGraphics → `.iconset` →
+`iconutil` → `.icns`) rather than checked in as binary art. This project has no design tools
+and no network; a generated icon can be re-rendered at any size without anyone needing an
+original artboard, and it keeps a blob nobody can diff out of the repository. The drawing
+scales its proportions from the canvas size so the 16pt version stays legible rather than
+being a shrunken 512. The Makefile rebuilds it whenever `Tools/make-icon.swift` changes.
+
+`make dmg` stages the bundle with an `/Applications` symlink and calls `hdiutil` — part of
+macOS, so nothing needs installing. Result is ~1.4 MB.
+
+**Signing and notarisation are deliberately *not* wired into the build.** `make bundle`
+ad-hoc signs, which is enough to run on the machine that built it and nothing more —
+Gatekeeper will refuse an ad-hoc signed app on anyone else's Mac. Doing it properly needs a
+Developer ID certificate and Apple's notary service, both of which require a paid Apple
+Developer account *and* network access, and this project is offline by rule. `DISTRIBUTION.md`
+documents the exact `codesign` / `notarytool` / `stapler` sequence, the app-specific-password
+detail people trip over, and how to read a rejection — so the steps are there when someone
+has the account, rather than a build target that fails for everyone who doesn't.
+
+Known gaps: no version bumping (`CFBundleShortVersionString` is edited by hand in
+`Info.plist`), no custom DMG background or window layout (plain drag-to-install), and no
+Sparkle-style updater. Verified by building the DMG, mounting it, and confirming the layout
+and bundled `.icns`.
 
 ## Cross-cutting (continuous)
 
