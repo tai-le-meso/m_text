@@ -140,6 +140,13 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
 
+    // MARK: - Macros (T94)
+
+    /// True while `run(_:)` is replaying, so replay neither re-records itself nor recurses.
+    var isReplayingMacro = false
+    /// Status text for the window's status line ("Recording macro…", "Replayed 6 steps").
+    public var onMacroStatus: ((String) -> Void)?
+
     // MARK: - Minimap (T93)
 
     /// The strip beside this editor, if the window built one. Weak: the minimap is owned by

@@ -233,6 +233,11 @@ it shows matches what's on screen. Click or drag to jump — the row you point a
 or scroll over it. Large files compress into the strip rather than scrolling it, so the whole
 file stays represented.
 
+**Macros** — **⌃⌘Q** starts and stops recording, **⌃⌘P** replays. Typing is coalesced, so a
+recorded run of keystrokes is one step rather than one per character. **Edit ▸ Macro ▸ Save
+Macro…** writes a `.sublime-macro` file you can keep, hand-edit or share; Open Macro… loads
+one back. Replay currently undoes step by step rather than as a single action.
+
 ## Layout
 
 ```
@@ -250,6 +255,7 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   Folding.swift        indent-based fold regions
   WordWrap.swift       greedy word-aware line breaking, in character columns
   RowMap.swift         folds + wrap unified: document line <-> screen row
+  Macro.swift          .sublime-macro model, parser, recorder
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

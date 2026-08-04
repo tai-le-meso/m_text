@@ -205,11 +205,48 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "turning it off restores the editor width exactly")
             }
 
+            /// T94: record → replay through the real editor. The unit tests cover the
+            /// recorder and the file format; only a live editor can show that the hooks in
+            /// `insertText`/`doCommand` fire and that replay doesn't re-record itself.
+            func macroCheck() {
+                let panes = paneViews()
+                guard let editor = panes.first.flatMap({ descendants(of: $0, named: "EditorView").first })
+                        as? EditorView else {
+                    check(false, "found an editor to record in")
+                    return
+                }
+                editor.wordWrapEnabled = false
+                editor.minimapEnabled = false
+                editor.text = ""
+                window.makeFirstResponder(editor)
+
+                editor.toggleMacroRecording(nil)
+                editor.insertText("abc", replacementRange: NSRange(location: NSNotFound, length: 0))
+                editor.doCommand(by: #selector(NSResponder.insertNewline(_:)))
+                editor.toggleMacroRecording(nil)
+
+                let macro = EditorView.lastMacro
+                check(macro?.steps.count == 2,
+                      "recorded a coalesced insert plus the newline (got \(macro?.steps.count ?? -1))")
+                check(macro?.steps.first?.insertedCharacters == "abc",
+                      "five keystrokes coalesced into one insert step")
+
+                let before = editor.text
+                editor.playbackMacro(nil)
+                check(editor.text == before + "abc\n",
+                      "replay appended the recorded text once")
+                // The bug this guards: replay running through the same hooks that recorded
+                // it, doubling the macro every run.
+                check(EditorView.lastMacro?.steps.count == 2,
+                      "replay did not re-record itself (\(EditorView.lastMacro?.steps.count ?? -1) steps)")
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
                 { wrapCheck() },
                 { minimapCheck() },
+                { macroCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")

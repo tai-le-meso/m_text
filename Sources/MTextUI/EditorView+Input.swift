@@ -31,6 +31,10 @@ extension EditorView {
     }
 
     public override func doCommand(by selector: Selector) {
+        // T94: captured before dispatch, so a command that ends up doing nothing is still
+        // recorded — replaying it will do nothing too, which is the faithful outcome.
+        recordMacroCommand(selector)
+
         // Autocomplete gets first refusal (T90): while the list is open, Tab/Enter commit,
         // Escape dismisses, and the arrows move the selection instead of the caret. The
         // popup never takes first responder, so this is the only place those keys can be
@@ -399,6 +403,8 @@ extension EditorView {
             }
             return
         }
+
+        recordMacroInsert(input)
 
         // T91: the one insertion path that can describe its own edit precisely — plain
         // typing over the current selection. The auto-pair and step-over-closer branches

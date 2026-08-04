@@ -126,6 +126,20 @@ private func editMenu() -> NSMenu {
     menu.addItem(withTitle: "Insert Snippet…",
                  action: #selector(MainWindowController.insertSnippet(_:)),
                  keyEquivalent: "")
+    menu.addItem(.separator())
+
+    // T94. ⌃⌘Q / ⌃⌘P are Sublime's own macro bindings. Record is one toggle rather than
+    // separate start/stop items — "am I recording?" is the only state to convey, and the
+    // menu title says which it is via `validateMenuItem`.
+    let macro = NSMenu(title: "Macro")
+    macro.addItem(item("Record Macro", #selector(EditorView.toggleMacroRecording(_:)), "q", [.command, .control]))
+    macro.addItem(item("Playback Macro", #selector(EditorView.playbackMacro(_:)), "p", [.command, .control]))
+    macro.addItem(.separator())
+    macro.addItem(withTitle: "Save Macro…",
+                  action: #selector(MainWindowController.saveMacro(_:)), keyEquivalent: "")
+    macro.addItem(withTitle: "Open Macro…",
+                  action: #selector(MainWindowController.openMacro(_:)), keyEquivalent: "")
+    menu.addItem(submenu(macro, title: "Macro"))
     return menu
 }
 
