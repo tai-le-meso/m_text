@@ -816,14 +816,46 @@ hermetic.
 
 ## Phase 8 — Extensibility & polish
 
-| # | Task | Size |
-|---|---|---|
-| T100 | JavaScriptCore plugin host: command registration, event listeners, view/edit API | L |
-| T101 | Spell check via NSSpellChecker on scope-filtered regions (strings/comments/text) | M |
-| T102 | Diff gutter vs disk (incremental diff), revert-hunk command | M |
-| T103 | Phantoms/annotations: inline attachment layout in EditorView | L |
-| T104 | Vi mode (modal command layer over command registry) | L |
-| T105 | App icon, DMG packaging script (hdiutil), notarization docs (optional/offline OK) | S |
+| # | Task | Size | Status |
+|---|---|---|---|
+| T100 | JavaScriptCore plugin host: command registration, event listeners, view/edit API | L | |
+| T101 | Spell check via NSSpellChecker on scope-filtered regions (strings/comments/text) | M | |
+| T102 | Diff gutter vs disk (incremental diff), revert-hunk command | M | ✅ |
+| T103 | Phantoms/annotations: inline attachment layout in EditorView | L | |
+| T104 | Vi mode (modal command layer over command registry) | L | |
+| T105 | App icon, DMG packaging script (hdiutil), notarization docs (optional/offline OK) | S | |
+
+
+**T102 detail (delivered):** `Sources/MTextCore/LineDiff.swift` diffs the buffer against the
+file as last loaded or saved. **Cost is the design constraint**, since this runs whenever the
+gutter is drawn: common prefix and suffix are trimmed first, which reduces the usual case — a
+few edits in a large file — to a handful of lines, and only what remains goes through the
+quadratic LCS. That is capped at `maximumLCSLines` (2000, already four million cells); past
+it the middle is reported as one modified hunk rather than spending O(n·m) on a diff nobody
+reads line by line. On top of that, `EditorView.diffMarks` caches against
+`TextDocument.generation` — the same staleness mechanism `BufferWordIndex` and `LayoutCache`
+use — so the diff runs once per edit rather than on every repaint, including every caret blink.
+
+The baseline is held **in memory**, not re-read from disk. Re-reading would hit the disk on
+every draw *and* would answer a different question — "has the file changed underneath me"
+(T19's external-change detection) rather than "what have I changed since I opened this". The
+baseline moves on load and on save, since after a save the file on disk *is* the buffer.
+
+A deletion has no line of its own to colour, so it marks the line that now follows it
+(`.deletedAbove`, drawn as a wedge at the boundary) and clamps to the last line when the
+deletion is at the end — otherwise it would fall off the document. `hunk(containing:)`
+matches a deletion by the line it sits above for the same reason: its `newRange` is empty, so
+without that a deleted hunk could never be reverted.
+
+**Revert Hunk** goes through the normal `didEdit` path, so it is one ordinary undo step —
+reverting a hunk you didn't mean to must be undoable like any other edit, not a special
+irreversible action. It greys out when the caret isn't in a hunk.
+
+Known gaps: the baseline is not persisted, so folds/marks reset on relaunch even for a file
+with unsaved changes restored by hot exit; no VCS integration (this is diff-vs-disk, not
+diff-vs-HEAD, which is what Sublime's own gutter does too); no next/previous-hunk navigation;
+and no intra-line character diff — a changed line is marked whole. 15 tests in `LineDiffTests`
+plus four smoke-test assertions covering open → edit → revert against a real file.
 
 ## Cross-cutting (continuous)
 

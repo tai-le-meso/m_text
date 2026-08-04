@@ -55,6 +55,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T63 Find in Files | ✅ engine |
 | T64 Results buffer | ✅ (⇧⌘F; buffer is editable, which desyncs the line map — see TASKS.md) |
 | T65 Replace in Files | ✅ (⌥⇧⌘F; preview + confirm, refuses files changed since planning) |
+| T102 Diff gutter | ✅ (diff vs disk, not vs VCS — see TASKS.md) |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
 Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
@@ -66,7 +67,13 @@ reusable tab where double-click or Enter jumps to the match (T63 engine + T64 bu
 **Phase 4 is now complete too** — ⌥⇧⌘F previews a replace into the results tab and asks
 before writing (T65).
 
-Remaining: **Phase 8** (T100–T105) and the partial **T16/T17/T19** from Phase 1.
+Remaining: **Phase 8** — T100 (plugin host), T101 (spell check), T103 (phantoms), T104 (vi
+mode), T105 (icon/DMG); **T102 (diff gutter) is done**. Plus the partial **T16/T17/T19** from
+Phase 1.
+
+⚠️ **Before starting T100 (JavaScriptCore plugin host), agree the sandboxing approach.** It
+is a far larger execution surface than T95's build systems — arbitrary user JS with access to
+the editor API, rather than a bounded "run this command when I press ⌘B".
 
 ⚠️ **T65 writes to files that are not open and have no undo stack.** `ReplaceInFiles.plan`
 is read-only; `ReplaceInFiles.apply` is the only writer and is reachable from exactly one
@@ -77,8 +84,8 @@ since planning. Keep all three of those properties.
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **389 passed, 1418 assertions** — run, along with `swift build -c release`,
-as of T65. (The 8 `SessionTests` that had never been executed when this file was first
+Test status: **404 passed, 1450 assertions** — run, along with `swift build -c release`,
+as of T102. (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -106,6 +113,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
   surfaced as ⇧⌘F into a reusable results tab.
 - **T65** replace in files: `ReplaceInFiles.swift` — two-phase plan/apply with a checksum
   staleness guard, previewed into the results tab and confirmed before writing (⌥⇧⌘F).
+- **T102** diff gutter: `LineDiff.swift` (trimmed + capped LCS), `EditorView+Diff.swift`
+  (generation-cached marks, gutter bars, Revert Hunk).
 
 ---
 

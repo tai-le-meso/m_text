@@ -115,6 +115,10 @@ private func editMenu() -> NSMenu {
 
     menu.addItem(.separator())
     menu.addItem(item("Toggle Comment", #selector(EditorView.toggleComment(_:)), "/", [.command]))
+    // T102. Greys out unless the caret is in a hunk; goes through the normal edit path, so
+    // it undoes like any other change.
+    menu.addItem(withTitle: "Revert Hunk",
+                 action: #selector(EditorView.revertHunk(_:)), keyEquivalent: "")
     menu.addItem(.separator())
     // T90. ⌃Space is Sublime's binding and forces the list open regardless of the
     // `auto_complete` setting or how few characters have been typed. Worth knowing: macOS

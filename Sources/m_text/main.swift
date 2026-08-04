@@ -282,6 +282,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let buildFixture { try? FileManager.default.removeItem(at: buildFixture) }
             }
 
+            /// T102: the diff is only useful if it actually appears against the file on
+            /// disk, and revert has to put the text back — neither is visible to the unit
+            /// tests, which only see the diff algorithm.
+            func diffCheck() {
+                let root = URL(fileURLWithPath: NSTemporaryDirectory())
+                    .appendingPathComponent("mtext-diff-\(UUID().uuidString)")
+                    .resolvingSymlinksInPath()
+                try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+                defer { try? FileManager.default.removeItem(at: root) }
+                let file = root.appendingPathComponent("diff.txt")
+                try? Data("alpha\nbeta\ngamma\n".utf8).write(to: file)
+
+                controller.smokeTestOpen(file)
+                check(controller.smokeTestDiffMarkCount == 0,
+                      "a freshly opened file has no diff marks (got \(controller.smokeTestDiffMarkCount))")
+
+                controller.smokeTestEditorText = "alpha\nBETA\ngamma\n"
+                check(controller.smokeTestDiffMarkCount > 0,
+                      "editing marks the changed line (got \(controller.smokeTestDiffMarkCount))")
+
+                controller.smokeTestRevertHunk(atLine: 1)
+                check(controller.smokeTestEditorText.contains("beta"),
+                      "revert put the original line back")
+                check(controller.smokeTestDiffMarkCount == 0,
+                      "and cleared the marks (got \(controller.smokeTestDiffMarkCount))")
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
@@ -290,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 { macroCheck() },
                 { buildCheck() },
                 { buildResultCheck() },
+                { diffCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")
