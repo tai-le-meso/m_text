@@ -821,7 +821,7 @@ hermetic.
 | T100 | JavaScriptCore plugin host: command registration, event listeners, view/edit API | L | |
 | T101 | Spell check via NSSpellChecker on scope-filtered regions (strings/comments/text) | M | ✅ |
 | T102 | Diff gutter vs disk (incremental diff), revert-hunk command | M | ✅ |
-| T103 | Phantoms/annotations: inline attachment layout in EditorView | L | |
+| T103 | Phantoms/annotations: inline attachment layout in EditorView | L | ✅ |
 | T104 | Vi mode (modal command layer over command registry) | L | |
 | T105 | App icon, DMG packaging script (hdiutil), notarization docs (optional/offline OK) | S | ✅ |
 
@@ -921,6 +921,38 @@ Known gaps: no version bumping (`CFBundleShortVersionString` is edited by hand i
 `Info.plist`), no custom DMG background or window layout (plain drag-to-install), and no
 Sparkle-style updater. Verified by building the DMG, mounting it, and confirming the layout
 and bundled `.icns`.
+
+**T103 detail (delivered):** phantoms **add rows**, exactly as folding removes them and
+wrapping adds them, so they go through `RowMap` rather than being drawn as an overlay. That
+is the whole distinction: an overlay sits on top of real text, whereas the point of an inline
+annotation is that the lines below move down to make room. `RowMap` gained
+`setPhantomRows(_:)`, `wrapRows(forLine:)` and `isPhantomRow(line:rowInLine:)`; phantom rows
+come *after* a line's wrapped rows, so an annotation reads as sitting below its line, and a
+folded line contributes none of its phantom rows — otherwise an annotation would float free
+of the collapsed text it describes.
+
+`PhantomSet` (`Sources/MTextCore/Phantom.swift`) keys phantoms by owner, so a rebuild replaces
+its own annotations and leaves anything else alone, and `adjust(afterEditAt:linesDelta:)`
+shifts them across edits, dropping any whose line was deleted — the same rule `FoldSet`
+follows, for the same reason: an annotation whose line is gone has nothing left to annotate.
+One row per phantom rather than measuring wrapped annotation text: a message needing more than
+a line is better truncated than allowed to push code off screen, and it keeps the row
+accounting exact without a second layout pass.
+
+`VisibleRow` gained `phantomIndex`, and drawing paints a tinted band with a leading bar
+(colour alone shouldn't carry the error/warning distinction, and the fills are faint so they
+don't compete with the code).
+
+**Wired to build diagnostics**, which is what makes this more than a framework: after a build,
+each error appears under the line that caused it, in the file it belongs to, with
+**Build ▸ Clear Inline Errors** to dismiss. Warnings are told from errors by the message text,
+which is where compilers conventionally put it; anything ambiguous is treated as an error,
+erring toward the more visible of the two.
+
+Known gaps: single-row annotations only (no multi-line or rich phantoms, no buttons or links
+in them as Sublime's HTML phantoms allow), no right-margin "annotation" style, and phantoms
+aren't persisted in the session. 11 tests in `PhantomTests` plus two smoke-test assertions
+that the canvas actually grows by a row and returns exactly.
 
 ## Cross-cutting (continuous)
 

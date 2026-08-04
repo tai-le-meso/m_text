@@ -58,14 +58,15 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T102 Diff gutter | ✅ (diff vs disk, not vs VCS — see TASKS.md) |
 | T101 Spell check | ✅ (F6; suggestions not wired to a context menu — see TASKS.md) |
 | T105 Icon + DMG | ✅ (ad-hoc signed only — notarisation documented, not automated) |
+| T103 Phantoms | ✅ (single-row annotations; wired to build errors — see TASKS.md) |
 
 **Find in Files is usable**: ⇧⌘F prompts, sweeps the project, and streams results into a
 reusable tab where double-click or Enter jumps to the match (T63 engine + T64 buffer).
 **Phase 4 is now complete too** — ⌥⇧⌘F previews a replace into the results tab and asks
 before writing (T65).
 
-Remaining: **Phase 8** — T100 (plugin host), T103 (phantoms), T104 (vi mode); **T101, T102
-and T105 are done**. The app is now packageable: `make dmg`. Plus the partial **T16/T17/T19** from
+Remaining: **Phase 8** — T100 (plugin host) and T104 (vi mode); **T101, T102, T103 and T105
+are done**. The app is packageable: `make dmg`. Plus the partial **T16/T17/T19** from
 Phase 1.
 
 ⚠️ **Before starting T100 (JavaScriptCore plugin host), agree the sandboxing approach.** It
@@ -81,8 +82,8 @@ since planning. Keep all three of those properties.
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **414 passed, 1462 assertions** — run, along with `swift build -c release`,
-as of T105 — which is build tooling and adds no tests.
+Test status: **425 passed, 1487 assertions** — run, along with `swift build -c release`,
+as of T103.
 
 ### Landed recently
 Every task has a "detail (delivered)" paragraph in `TASKS.md` recording its scope decisions
@@ -115,6 +116,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
   `EditorView+SpellCheck.swift` (`NSSpellChecker`, cached per line, squiggles, F6/⌃F6).
 - **T105** packaging: `Tools/make-icon.swift` (icon drawn in code), `make icon` / `make dmg`,
   `DISTRIBUTION.md` for the signing and notarisation steps that need an Apple account.
+- **T103** phantoms: `Phantom.swift` + `RowMap` phantom rows, `EditorView+Phantoms.swift`,
+  wired to build diagnostics so errors appear under the lines that caused them.
 
 ---
 

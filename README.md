@@ -154,6 +154,10 @@ version, as a normal undoable edit. This compares against the file on disk, not 
 comments, strings and prose only, using the syntax scopes, so code identifiers aren't
 underlined into noise. Set `"spell_check": true` to have it on by default.
 
+**Inline errors** — after a build, each diagnostic appears on its own row directly under the
+line that caused it, in the right file. The lines below move down to make room rather than
+the annotation covering them. **Build ▸ Clear Inline Errors** dismisses them.
+
 Known gaps, tracked in TASKS.md: the canvas is a single NSView, so documents with millions
 of lines need the custom scroller.
 
@@ -301,6 +305,7 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   ReplaceInFiles.swift plan/apply replace with a staleness guard
   LineDiff.swift       line diff vs disk: trimmed + capped LCS, hunks and marks
   SpellCheckScopes.swift  which parts of a line are prose worth checking
+  Phantom.swift        inline annotations: model + row accounting
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

@@ -178,6 +178,8 @@ extension EditorView {
     func foldsDidEdit(fromLine: Int) {
         let delta = document.lineCount - lastKnownLineCount
         lastKnownLineCount = document.lineCount
+        // Annotations shift with the same delta (T103).
+        phantomsDidEdit(fromLine: fromLine, linesDelta: delta)
         guard !folds.isEmpty else { return }
         if delta != 0 {
             var updated = folds
