@@ -44,7 +44,7 @@ Tests do **not** use XCTest — that ships inside Xcode.app, and this project bu
 tests with Command Line Tools alone. `Sources/MTextTestKit` is a small assertion
 harness and runner; `Sources/MTextTests` is a plain executable.
 
-## Current state — Phases 1–6 complete, Phase 7 in progress
+## Current state — Phases 1–7 complete, Phase 8 in progress
 
 **Engine (MTextCore, no AppKit, fully unit tested)**
 

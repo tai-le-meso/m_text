@@ -28,7 +28,7 @@ originally written around plus two follow-on ⌘F bugs. Those sessions *did* hav
 
 ## Where the project stands
 
-Phases 1–6 complete. **Phase 7 (Intelligence) is in progress.**
+**Phases 1–7 complete, plus Phase 4's find/replace-in-files and three of Phase 8.**
 
 **The blank-pane bug that headed this file is FIXED** (see the post-mortem below, which
 replaces the old "🔴 OPEN BUG" section), and **T86 (settings) has since landed**, closing
@@ -59,11 +59,6 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T101 Spell check | ✅ (F6; suggestions not wired to a context menu — see TASKS.md) |
 | T105 Icon + DMG | ✅ (ad-hoc signed only — notarisation documented, not automated) |
 
-Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
-Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
-`RowMap` so it agrees with folding and wrapping), **T94 ✅** (macros) and **T95 ✅** (build
-systems). **Phase 7 is complete.**
-
 **Find in Files is usable**: ⇧⌘F prompts, sweeps the project, and streams results into a
 reusable tab where double-click or Enter jumps to the match (T63 engine + T64 buffer).
 **Phase 4 is now complete too** — ⌥⇧⌘F previews a replace into the results tab and asks
@@ -87,8 +82,7 @@ Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildR
 (launching) so that stays easy to verify. Keep it that way.
 
 Test status: **414 passed, 1462 assertions** — run, along with `swift build -c release`,
-as of T105. (T105 is build tooling; it adds no tests.) (The 8 `SessionTests` that had never been executed when this file was first
-written have since run clean.)
+as of T105 — which is build tooling and adds no tests.
 
 ### Landed recently
 Every task has a "detail (delivered)" paragraph in `TASKS.md` recording its scope decisions
