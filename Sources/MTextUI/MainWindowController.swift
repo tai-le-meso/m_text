@@ -180,6 +180,54 @@ public final class MainWindowController: NSWindowController {
         refreshChrome()
     }
 
+    // MARK: - Macros (T94)
+
+    /// Saves the last recorded macro as a `.sublime-macro` file, so it survives a relaunch
+    /// and can be shared or hand-edited.
+    @objc public func saveMacro(_ sender: Any?) {
+        guard let window else { return }
+        guard let macro = EditorView.lastMacro, !macro.isEmpty else {
+            NSSound.beep()
+            statusLabel.stringValue = "No macro to save"
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "Macro.sublime-macro"
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                try MacroParser.serialize(macro).write(to: url, options: .atomic)
+            } catch {
+                self?.showError(error)
+            }
+        }
+    }
+
+    @objc public func openMacro(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        // Filtered by the delegate, like the project and syntax pickers: no UTType is
+        // registered for `.sublime-macro`.
+        panel.delegate = self
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard response == .OK, let url = panel.url, let self else { return }
+            do {
+                let macro = try MacroParser.parse(data: Data(contentsOf: url))
+                guard !macro.isEmpty else {
+                    self.statusLabel.stringValue = "That macro has no usable steps"
+                    return
+                }
+                EditorView.lastMacro = macro
+                self.statusLabel.stringValue = "Loaded \(macro.steps.count) steps — ⌃⌘P to run"
+            } catch {
+                self.showError(error)
+            }
+        }
+    }
+
     // MARK: - Snippets (T91)
 
     /// **Insert Snippet…** — a palette over every loaded snippet, for the ones you haven't
@@ -458,6 +506,12 @@ public final class MainWindowController: NSWindowController {
         editorView.onViewOverridesChanged = { [weak self, weak editorView] in
             guard let self, let editorView else { return }
             self.applySettings(to: self.allTabs.first { $0.editor === editorView })
+        }
+        // T94: macro state is app-wide, but its feedback belongs in this window's status
+        // line — `refreshChrome` would overwrite it on the next caret move, which is fine:
+        // the message is transient by nature.
+        editorView.onMacroStatus = { [weak self] message in
+            self?.statusLabel.stringValue = message
         }
         editorView.onDidBecomeFirstResponder = { [weak self, weak editorView] in
             guard let self, let editorView else { return }
@@ -1858,16 +1912,21 @@ extension MainWindowController: NSWindowDelegate {
 
 extension MainWindowController: NSOpenSavePanelDelegate {
 
-    /// Enables only `.sublime-project` files in `switchProject`'s open panel — see the
-    /// comment at that call site for why this is delegate-based rather than
-    /// `allowedContentTypes`/`allowedFileTypes`. Directories must stay enabled
-    /// regardless of extension (matching `SyntaxMenuController`'s own import panel) —
-    /// otherwise `shouldEnable` returning false for every folder would also block
-    /// navigating *into* them to find a nested `.sublime-project` file.
+    /// Enables the extensions this app opens through a picker — `.sublime-project` for
+    /// `switchProject` and `.sublime-macro` for `openMacro` (T94) — see the comment at
+    /// `switchProject` for why this is delegate-based rather than
+    /// `allowedContentTypes`/`allowedFileTypes`. Directories must stay enabled regardless of
+    /// extension (matching `SyntaxMenuController`'s own import panel) — otherwise
+    /// `shouldEnable` returning false for every folder would also block navigating *into*
+    /// them to find a nested file.
+    ///
+    /// One list for both panels rather than a mode flag: the two extensions don't overlap,
+    /// so the worst case is a macro file appearing selectable in the project picker, which
+    /// then fails to parse as a project and reports it.
     public func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
         if values?.isDirectory == true { return true }
-        return url.pathExtension.lowercased() == "sublime-project"
+        return ["sublime-project", "sublime-macro"].contains(url.pathExtension.lowercased())
     }
 }
 

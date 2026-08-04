@@ -452,7 +452,7 @@ reads cannot drift from what the app applies.
 | T91 | Snippets: .sublime-snippet parser, tab stops $1/$2, mirrors, placeholders, $SELECTION vars | L | ✅ |
 | T92 | Code folding: indent-based regions, fold UI in gutter, folded-line layout | L | ✅ |
 | T93 | Minimap: downsampled render from highlight spans, viewport drag | M | ✅ |
-| T94 | Macros: record command stream, replay, save/load | M | |
+| T94 | Macros: record command stream, replay, save/load | M | ✅ |
 | T95 | Build systems: .sublime-build, run via Process, output panel, error regex + F4 navigation | M | |
 
 **T90 detail (delivered):** `Sources/MTextCore/Completions.swift` is the whole policy, pure
@@ -692,6 +692,49 @@ file's rows are not individually distinguishable — unavoidable at any fixed st
 worth stating. No unit tests (it is AppKit drawing, consistent with the rest of MTextUI);
 covered by four smoke-test assertions that it takes real width, gives it back exactly, and
 collapses when off.
+
+**T94 detail (delivered):** `Sources/MTextCore/Macro.swift` models a step as a command name
+plus args, reusing `SettingValue` for the args rather than defining a parallel JSON value
+type — macros and settings have the same problem (typed values out of untyped JSON, bools
+distinguishable from `0`/`1`) and that code is already written and tested. `MacroParser`
+reads and writes `.sublime-macro` (a JSON array), tolerating `//` comments like every other
+JSON-ish format here and **skipping** an unusable step rather than failing the file, so a
+macro from a newer build or from real Sublime replays whatever it has in common.
+
+`MacroRecorder`'s one piece of real logic is **coalescing consecutive inserts**: typing
+`hello` arrives as five `insertText` calls, and five steps would make the file unreadable and
+replay five times slower for nothing. Any non-insert command breaks the run, so "type `foo`,
+Home, type `bar`" stays three steps.
+
+Recording taps the two places every editing action already funnels through — `insertText` and
+`doCommand(by:)` — so nothing else in the editor knows it is being recorded. Commands are
+stored as the **selector name** (`"moveToBeginningOfLine:"`) rather than translated into
+Sublime's own command vocabulary: those names are a distinct snake_case language that only
+partly overlaps `NSResponder`'s selectors, and hand-writing a mapping for every movement and
+deletion command would be a large table that silently dropped whatever it missed. Replay
+accepts **both** — a Sublime name resolves through the existing `KeymapCommands` table, and
+anything else is read as a selector — so macros recorded here are portable within this app,
+and Sublime-authored macros work to the extent their commands are in that table.
+
+`isReplayingMacro` guards both hooks, which is what stops replay from re-recording itself and
+doubling the macro on every run; the macro controls themselves are excluded from recording so
+a macro can't end by stopping itself. Recorder and last macro are `static` — app-wide rather
+than per view, because a macro recorded in one tab is expected to replay in another and two
+tabs recording different macros at once has no meaning.
+
+**Edit ▸ Macro**: Record (⌃⌘Q) and Playback (⌃⌘P), Sublime's own bindings, plus Save Macro…
+and Open Macro…. Record is one toggle rather than two items — the menu title carries the
+state via `validateMenuItem`, and Playback greys out with nothing recorded. Status
+("Recording macro…", "Replayed 6 steps") goes to the window's status line, which
+`refreshChrome` overwrites on the next caret move — fine, the message is transient.
+
+Known gaps: replay is **not one undo step** — each edit undoes separately, which is the main
+thing to fix if macros get heavy use. Only one macro is held at a time (no named macro
+library, no binding a macro to a key). Mouse actions aren't recorded, only keyboard commands
+and typed text. Menu- and palette-driven commands that don't go through `doCommand` (Fold,
+Goto, the find bar) aren't captured either. 14 tests in `MacroTests` plus four smoke-test
+assertions covering a live record→replay round trip, including that replay doesn't re-record
+itself.
 
 ## Phase 8 — Extensibility & polish
 

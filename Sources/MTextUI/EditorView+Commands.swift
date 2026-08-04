@@ -348,6 +348,13 @@ extension EditorView {
         case #selector(EditorView.toggleWordWrap(_:)):
             menuItem.state = wordWrapEnabled ? .on : .off
             return true
+        case #selector(EditorView.toggleMacroRecording(_:)):
+            // The title carries the state, so there is no need for a checkmark or a second
+            // menu item (T94).
+            menuItem.title = EditorView.macroRecorder.isRecording ? "Stop Recording Macro" : "Record Macro"
+            return true
+        case #selector(EditorView.playbackMacro(_:)):
+            return EditorView.lastMacro?.isEmpty == false
         case #selector(EditorView.toggleMinimap(_:)):
             menuItem.state = minimapEnabled ? .on : .off
             return true

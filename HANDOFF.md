@@ -50,14 +50,15 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T92 Code folding | ✅ (folds not persisted in the session — see TASKS.md) |
 | T28 Word wrap | ✅ (no indented continuation rows — see TASKS.md) |
 | T93 Minimap | ✅ (compresses rather than scrolls on large files — see TASKS.md) |
+| T94 Macros | ✅ (replay is not a single undo step — see TASKS.md) |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
 Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
-`RowMap` so it agrees with folding and wrapping). **T94 (macros) is the next task**, per
-`TASKS.md`.
+`RowMap` so it agrees with folding and wrapping), and **T94 ✅** (macros). **T95 (build
+systems) is the last task in Phase 7**, per `TASKS.md`; after it, Phase 8.
 
-Test status: **323 passed, 1272 assertions** — run, along with `swift build -c release`,
-as of T28. (The 8 `SessionTests` that had never been executed when this file was first
+Test status: **337 passed, 1298 assertions** — run, along with `swift build -c release`,
+as of T94. (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -76,6 +77,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
   `VisibleRows` replacing T92's `VisibleLines` throughout drawing.
 - **T93** minimap: `Minimap.swift`, drawn from highlight spans over `RowMap` rows, mounted
   per tab beside the scroll view (`Tab.container`).
+- **T94** macros: `Macro.swift` (model, `.sublime-macro` parser, recorder with insert
+  coalescing), `EditorView+Macros.swift` (hooks in `insertText`/`doCommand`, replay).
 
 ---
 

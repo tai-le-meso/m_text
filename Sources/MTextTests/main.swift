@@ -29,6 +29,7 @@ var suites: [TestSuite] = [
     FoldingTests.suite,
     WordWrapTests.suite,
     RowMapTests.suite,
+    MacroTests.suite,
 ]
 
 // The performance budgets are written for an optimised build; a debug build is
