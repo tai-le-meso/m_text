@@ -284,7 +284,12 @@ Each of these has bitten more than once.
    `.`/`..`), whenever comparing paths. Broke `FileIndexTests`, recurred in `Sidebar.reveal`.
 5. **`@objc` requires NSObject inheritance** — selector-based `NotificationCenter`
    observation needs the class to inherit `NSObject` (caught in `SessionManager`).
-6. **SourceKit lags behind `swift build`.** Editor diagnostics showing "cannot find type X in
+6. **Grep build output for `warning:` too, not just `error:`.** A `swift build | grep error`
+   habit hides warnings completely — a `var` that should be `let` sat in `BuildSystem.swift`
+   for a whole task before the user spotted it. `swift build 2>&1 | grep -E "warning:|error:"`,
+   and note that an incremental build only re-reports diagnostics for files it recompiles, so
+   clear `.build/debug` (or `-c release`) when you want the true count.
+7. **SourceKit lags behind `swift build`.** Editor diagnostics showing "cannot find type X in
    scope" for a type you just added are usually stale index, not a real error. Trust
    `swift build`.
 

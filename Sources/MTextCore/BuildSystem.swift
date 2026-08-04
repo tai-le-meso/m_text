@@ -82,7 +82,7 @@ public struct BuildVariables {
     /// Replaces `$name` and `${name}` throughout. `\$` escapes a literal dollar.
     public func expand(_ text: String) -> String {
         var result = ""
-        var characters = Array(text)
+        let characters = Array(text)
         var index = 0
         while index < characters.count {
             let character = characters[index]

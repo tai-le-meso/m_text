@@ -21,6 +21,9 @@ originally written around plus two follow-on ⌘F bugs. Those sessions *did* hav
 - Build/run/test: `make` (release bundle), `make run` (bundle + `open`), **`make debug`
   (runs attached to the terminal — the only way to see `print()` output; `make run`
   detaches via `open` and swallows logs)**, `make test`, `make test FILTER=Session`.
+- **The tree builds clean — no warnings, in debug *or* release.** Keep it that way, and
+  check with `grep -E "warning:|error:"` rather than grepping for errors alone (see
+  `KNOWLEDGE.md`, compile bug class #6).
 - **The original session that wrote most of this had no compiler.** Code was verified by
   manual review and subagent review, then compiled by the user. Later sessions *do* build
   and run — use that; several bug classes only ever surfaced at real compile time, and the
