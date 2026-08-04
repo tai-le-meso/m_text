@@ -128,7 +128,13 @@ of open tabs), skipping binaries and the usual `node_modules`/`.git` excludes, a
 results into a tab as they are found rather than making you wait for the sweep. Results are
 grouped by file with a line of context either side; **double-click** or press **Enter** on a
 match to jump straight to it. Regex, case and whole-word come from the find bar, so both
-searches mean the same thing by a pattern. Replace in Files is not built yet (T65).
+searches mean the same thing by a pattern.
+
+**Replace in Files** — put the pattern and replacement in the find bar, then **⌥⇧⌘F**. It
+writes a full before/after preview into a tab and asks before changing anything. Files that
+changed on disk since the preview was built are skipped rather than overwritten, and any
+skipped or failed files are reported. Line endings are preserved. There is no undo for an
+applied replace, which is why the confirmation is not optional.
 
 Known gaps, tracked in TASKS.md: the canvas is a single NSView, so documents with millions
 of lines need the custom scroller.
@@ -274,6 +280,7 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   BuildSystem.swift    .sublime-build parsing, $variables, file_regex (no execution)
   FindInFiles.swift    streaming tree search: excludes, binary skip, limits
   FindResults.swift    results text + buffer-line -> match mapping
+  ReplaceInFiles.swift plan/apply replace with a staleness guard
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

@@ -274,6 +274,122 @@ public final class MainWindowController: NSWindowController {
         findInFilesSearch.cancel()
     }
 
+    // MARK: - Replace in Files (T65)
+
+    /// ⌥⇧⌘F — replace across the project, **preview first, then confirm**.
+    ///
+    /// The confirmation is not a nicety: this rewrites files that are not open, have no undo
+    /// stack, and that the user may never have looked at. The preview is written into the
+    /// results tab so it can be scrolled and read properly rather than squeezed into an
+    /// alert, and the alert then states the exact file and replacement counts. Nothing is
+    /// written until that alert is accepted.
+    @objc public func replaceInFiles(_ sender: Any?) {
+        guard let window else { return }
+        let roots = fileIndexRoots()
+        guard !roots.isEmpty else {
+            statusLabel.stringValue = "Open a folder or project to replace in"
+            NSSound.beep()
+            return
+        }
+        // Both fields come from the find bar, so what ⌘F would match is exactly what this
+        // replaces — there is no second pattern to get out of step.
+        let query = findBar.query
+        guard !query.isEmpty else {
+            statusLabel.stringValue = "Type a pattern in the find bar first (⌘F)"
+            NSSound.beep()
+            return
+        }
+        let template = findBar.replacementTemplate
+
+        statusLabel.stringValue = "Scanning…"
+        var request = FindInFilesRequest(query: query, roots: roots,
+                                         excludedNames: FileIndex.defaultExcludedNames
+                                             .union(currentProject?.allExcludedNames ?? []))
+        request.contextLines = 0
+
+        // Collect the matching files first, then plan against them: planning re-reads and
+        // re-matches, so the sweep is only used to find *which* files are involved.
+        var files: Set<URL> = []
+        let search = FindInFilesSearch()
+        search.onMatches = { matches in files.formUnion(matches.map(\.url)) }
+        search.onFinish = { [weak self] _ in
+            guard let self else { return }
+            let plan = ReplaceInFiles.plan(files: Array(files), query: query, template: template)
+            guard !plan.isEmpty else {
+                self.statusLabel.stringValue = "Nothing to replace"
+                return
+            }
+            self.showReplacePreview(plan, window: window, template: template)
+        }
+        search.run(request)
+    }
+
+    /// Writes the preview into the results tab, then asks.
+    private func showReplacePreview(_ plan: ReplaceInFiles.Plan, window: NSWindow, template: String) {
+        var text = "Replace preview — nothing has been written yet.\n\n"
+        for change in plan.changes {
+            text += "\(change.url.path):\n"
+            for preview in change.previews {
+                text += String(format: "%6d  - %@\n", preview.line + 1, preview.before)
+                text += String(format: "%6s  + %@\n", "", preview.after)
+            }
+            text += "\n"
+        }
+        text += "\(plan.replacementCount) replacement\(plan.replacementCount == 1 ? "" : "s") "
+        text += "in \(plan.fileCount) file\(plan.fileCount == 1 ? "" : "s")\n"
+        if !plan.unreadable.isEmpty {
+            text += "\(plan.unreadable.count) file(s) skipped as unreadable or binary\n"
+        }
+
+        let tab = findResultsTab ?? makeBlankTab(in: focusedPane)
+        findResultsTab = tab
+        // Not a navigable results buffer: these are previews of edits, not matches to jump
+        // to, and mapping them would invite a click that looks like it applied something.
+        tab.editor.findResults = nil
+        tab.editor.text = text
+        activate(tab)
+        focusedPane.refreshTabBar()
+
+        let alert = NSAlert()
+        alert.messageText = "Replace in \(plan.fileCount) file\(plan.fileCount == 1 ? "" : "s")?"
+        alert.informativeText = "\(plan.replacementCount) replacement"
+            + (plan.replacementCount == 1 ? "" : "s")
+            + " will be written to \(plan.fileCount) file"
+            + (plan.fileCount == 1 ? "" : "s")
+            + " that are not open in the editor. This cannot be undone from here — "
+            + "the preview is in the tab behind this dialog."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Replace")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertFirstButtonReturn else {
+                self?.statusLabel.stringValue = "Replace cancelled — nothing was written"
+                return
+            }
+            self?.applyReplacement(plan)
+        }
+    }
+
+    private func applyReplacement(_ plan: ReplaceInFiles.Plan) {
+        let result = ReplaceInFiles.apply(plan)
+        var message = "Replaced in \(result.written.count) file\(result.written.count == 1 ? "" : "s")"
+        // Stale and failed files are surfaced rather than swallowed: a silent partial write
+        // is the worst outcome of a bulk edit.
+        if !result.stale.isEmpty { message += " — \(result.stale.count) skipped (changed on disk)" }
+        if !result.failed.isEmpty { message += " — \(result.failed.count) failed" }
+        statusLabel.stringValue = message
+
+        // Any open tab showing a rewritten file is now out of date on screen.
+        for tab in allTabs {
+            guard let url = tab.editor.document.fileURL, result.written.contains(url) else { continue }
+            if tab.editor.document.isDirty { continue }   // never discard unsaved work
+            try? tab.editor.loadFile(url)
+            applySettings(to: tab)
+        }
+        focusedPane.refreshTabBar()
+        refreshChrome()
+    }
+
     // MARK: - Build systems (T95)
 
     private let buildRunner = BuildRunner()
