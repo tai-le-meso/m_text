@@ -47,6 +47,8 @@ extension EditorView {
         // MARK: Insertion
         case #selector(NSResponder.insertNewline(_:)),
              #selector(NSResponder.insertLineBreak(_:)):
+            // T64: Enter opens the match in a results buffer instead of inserting a line.
+            if isFindResultsBuffer, activateResult(atLine: selection.primary.head.line) { return }
             insertNewlineWithIndent()
         case #selector(NSResponder.insertTab(_:)):
             insertTabOrIndent()

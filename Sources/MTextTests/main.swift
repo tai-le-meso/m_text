@@ -32,6 +32,7 @@ var suites: [TestSuite] = [
     MacroTests.suite,
     BuildSystemTests.suite,
     FindInFilesTests.suite,
+    FindResultsTests.suite,
 ]
 
 // The performance budgets are written for an optimised build; a debug build is

@@ -12,6 +12,11 @@ extension EditorView {
         // not also move the caret to that line (T92).
         if handleFoldClick(at: point) { return }
         let clicked = position(at: point)
+        // T64: a double-click in a results buffer opens the match rather than selecting the
+        // word under the pointer.
+        if isFindResultsBuffer, event.clickCount == 2, activateResult(atLine: clicked.line) {
+            return
+        }
         let additive = event.modifierFlags.contains(.command)
         let extending = event.modifierFlags.contains(.shift)
         let rectangular = event.modifierFlags.contains(.option)

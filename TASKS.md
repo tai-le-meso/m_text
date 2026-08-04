@@ -80,7 +80,7 @@ scanned at launch so drop-in grammars override the built-ins.
 | T61 | Incremental in-buffer search, all-match highlight, ⌘G/⇧⌘G cycle | M | ✅ |
 | T62 | Replace / Replace All with `$1`/`\1` captures, preserve-case | M | ✅ (in-selection scope modelled, no UI yet) |
 | T63 | Find in Files: parallel file walker (excludes binaries/patterns), streaming matcher | L | ✅ engine only — no UI until T64 |
-| T64 | Results buffer: grouped by file, context lines, double-click → jump, live append | M | — |
+| T64 | Results buffer: grouped by file, context lines, double-click → jump, live append | M | ✅ |
 | T65 | Replace in Files with preview + confirm | M | — |
 
 Search is line-oriented, so a regex cannot span a line break — a deliberate consequence
@@ -112,8 +112,7 @@ implying the tree was fully searched. The sweep takes an `emit` closure rather t
 to the main queue directly, which is what makes the matching, skipping and limit rules
 testable on the calling thread (`runSynchronously`).
 
-Known gaps: **no UI yet — that is T64**, so the engine is currently reachable only from
-tests. The walk is sequential rather than parallel across files (the perf test sweeps 400
+Known gaps (T63): the walk is sequential rather than parallel across files. The walk is sequential rather than parallel across files (the perf test sweeps 400
 files / 80k lines in ~0.2s, so concurrency has not been worth the complexity yet; the task
 title says "parallel" and this is the deliberate departure). No include/exclude glob
 patterns beyond `FileIndex`'s plain-name excludes, and no search-in-open-buffers-first. 14

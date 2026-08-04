@@ -140,6 +140,27 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
 
+    // MARK: - Find results (T64)
+
+    /// Set when this editor is showing find-in-files results, which turns it into a
+    /// navigable list: double-click or Enter on a match line jumps to it. nil for a normal
+    /// document, so nothing about ordinary editing changes.
+    var findResults: FindResultsBuffer?
+    /// Asks the window to open the match on a given buffer line.
+    var onActivateResult: ((FileMatch) -> Void)?
+
+    var isFindResultsBuffer: Bool { findResults != nil }
+
+    /// Activates the match on the caret's line, if there is one. Returns false for a
+    /// heading, blank or context line — which then does nothing rather than jumping
+    /// somewhere the user didn't point at.
+    @discardableResult
+    func activateResult(atLine line: Int) -> Bool {
+        guard let match = findResults?.match(atBufferLine: line) else { return false }
+        onActivateResult?(match)
+        return true
+    }
+
     // MARK: - Macros (T94)
 
     /// True while `run(_:)` is replaying, so replay neither re-records itself nor recurses.
