@@ -351,8 +351,83 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "clearing gives the row back exactly")
             }
 
+            /// The most basic property of a text editor, and the one nothing else here
+            /// covered: a real key event, delivered to the window the way the OS delivers
+            /// it, changes the document. Every other check drives the editor through
+            /// method calls, which skips `keyDown` -> keymap -> `interpretKeyEvents`
+            /// entirely — so a break anywhere along that path was invisible.
+            func typingCheck() {
+                let hit = controller.smokeTestViewUnderEditorCentre()
+                check(hit == "EditorView", "a click in the editor's middle reaches it (hit \(hit))")
+                check(controller.smokeTestFocusEditor(), "the focused editor takes first responder")
+                controller.smokeTestEditorText = ""
+
+                func press(_ characters: String, keyCode: UInt16) {
+                    guard let event = NSEvent.keyEvent(
+                        with: .keyDown, location: .zero, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime,
+                        windowNumber: window.windowNumber, context: nil,
+                        characters: characters, charactersIgnoringModifiers: characters,
+                        isARepeat: false, keyCode: keyCode)
+                    else { return }
+                    window.sendEvent(event)
+                }
+
+                press("h", keyCode: 4)
+                press("i", keyCode: 34)
+                check(controller.smokeTestEditorText == "hi",
+                      "typing inserts text (got \(String(reflecting: controller.smokeTestEditorText)))")
+
+                press("\r", keyCode: 36)
+                press("x", keyCode: 7)
+                check(controller.smokeTestEditorText == "hi\nx",
+                      "Return and a further key work (got \(String(reflecting: controller.smokeTestEditorText)))")
+
+                press("\u{8}", keyCode: 51) // delete
+                check(controller.smokeTestEditorText == "hi\n",
+                      "Delete removes a character (got \(String(reflecting: controller.smokeTestEditorText)))")
+            }
+
+            /// Per-edit work that scales with document size — the diff gutter's whole-buffer
+            /// LCS, spell check, the minimap, wrap — turns "slow" into "the app does not
+            /// respond", which is indistinguishable from broken. Small synthetic buffers
+            /// hide all of it, so this types into a realistically large one.
+            func typingLatencyCheck() {
+                controller.smokeTestFocusEditor()
+                controller.smokeTestEditorText =
+                    String(repeating: "let value = computeSomething(from: input, with: options)\n",
+                           count: 20_000)
+                func timePerKey() -> Double {
+                    let started = ProcessInfo.processInfo.systemUptime
+                    let keystrokes = 20
+                    for _ in 0..<keystrokes {
+                        guard let event = NSEvent.keyEvent(
+                            with: .keyDown, location: .zero, modifierFlags: [],
+                            timestamp: ProcessInfo.processInfo.systemUptime,
+                            windowNumber: window.windowNumber, context: nil,
+                            characters: "z", charactersIgnoringModifiers: "z",
+                            isARepeat: false, keyCode: 6)
+                        else { return -1 }
+                        window.sendEvent(event)
+                    }
+                    return (ProcessInfo.processInfo.systemUptime - started) / Double(keystrokes) * 1000
+                }
+                // Discard the first run: the completion caches scan once on first use by
+                // design, and that one scan is not what this is guarding against.
+                _ = timePerKey()
+                let perKey = timePerKey()
+                // The regression was 79 ms/key in release and 154 in debug — a keystroke
+                // stalling the main thread outright. The budget is deliberately far below
+                // that and above where a debug build sits (~12 ms), so it catches a return
+                // of per-keystroke O(buffer) work without failing on ordinary noise.
+                check(perKey < 30,
+                      String(format: "typing stays responsive in a 20k-line file (%.1f ms/key)", perKey))
+            }
+
             run([
                 { controller.splitViewRight(nil) },
+                { typingCheck() },
+                { typingLatencyCheck() },
                 { foldingCheck() },
                 { wrapCheck() },
                 { minimapCheck() },
@@ -402,6 +477,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         check(bar.frame.width > 100, "find bar still visibly sized (\(bar.frame.size))")
                     }
                 },
+
+                // The reported failure was "it worked, then stopped", so typing is checked
+                // a second time with every other feature's state left behind — a build run,
+                // phantoms set, spell check on, folds made, and the find bar open.
+                { typingCheck() },
             ])
         }
     }

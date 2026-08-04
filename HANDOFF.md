@@ -48,7 +48,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T84 Session persistence | ✅ |
 | T85 Hot exit | ✅ except undo-stack persistence (scoped out) |
 | T86 Settings system | ✅ (`color_scheme` parses but isn't applied — see TASKS.md) |
-| T90 Autocomplete | ✅ (project symbols need an index built by Goto Symbol/Definition first) |
+| T90 Autocomplete | ✅ (its two document scans stalled typing until fixed — `KNOWLEDGE.md` S5) |
 | T91 Snippets | ✅ (only typing/backspace keep a session alive — see TASKS.md) |
 | T92 Code folding | ✅ (folds not persisted in the session — see TASKS.md) |
 | T28 Word wrap | ✅ (no indented continuation rows — see TASKS.md) |
@@ -85,8 +85,8 @@ since planning. Keep all three of those properties.
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **425 passed, 1487 assertions** — run, along with `swift build -c release`,
-as of T103.
+Test status: **425 passed, 1492 assertions** — run, along with `swift build -c release`,
+as of the S5 typing-latency fix.
 
 ### Landed recently
 Every task has a "detail (delivered)" paragraph in `TASKS.md` recording its scope decisions
@@ -149,6 +149,17 @@ drives the real window controller through split → focus → find and *asserts*
 that actually broke — panes have usable width, clicking a pane's text focuses it, ⌘F opens
 the bar in the focused pane (checked in both directions), and an open bar follows focus. It
 prints ✓/✗ and exits non-zero.
+
+It also drives **real `NSEvent` key-downs through the window** and asserts the document
+changes, that a click in the editor's middle actually lands on the editor, and that typing
+in a 20k-line buffer stays inside a per-keystroke budget. Everything else here drives the
+editor by calling methods, which skips `keyDown` → keymap → `interpretKeyEvents` entirely —
+that gap is where S5 lived.
+
+⚠️ When adding a check, take the editor from the **controller** (`smokeTest*` hooks), never
+by finding the first `EditorView` in the view tree: a pane holds one per tab, so the
+view-tree lookup can silently measure a different editor than the one you are driving. That
+has now produced a false result three times (T102, T103, and again while diagnosing S5).
 
 Every assertion was verified to fail against the un-fixed code before being kept. **Extend it
 whenever a UI bug escapes** — that is the point of it. Details and its known limits are in

@@ -502,11 +502,27 @@ index — this is the keystroke path, and kicking off a project-wide symbol walk
 keypress is exactly how typing starts to stutter; Goto Symbol/Goto Definition remain what
 populate it.
 
-`BufferWordIndex` caches the word scan against `TextDocument.generation`, the same staleness
-mechanism `LayoutCache` and `HighlightService` use, so a run of keystrokes extending one word
-reuses a single scan. A `PerformanceTests` case asserts the cold scan of a 100k-line buffer
-stays under 2s, that 20 cached lookups beat one cold scan, and that one keystroke's ranking
-stays under 0.1s.
+**Both of this feature's document scans were later found running on every keystroke, and
+were fixed** — see `KNOWLEDGE.md` S5, which is worth reading before touching this code.
+`BufferWordIndex` originally cached against `TextDocument.generation` (the mechanism
+`LayoutCache` and `HighlightService` use), but that counter bumps on every keypress, so the
+cache missed every time; `completionSymbols()` re-extracted the file's symbols per keystroke
+besides. Together they cost 79 ms per key in a 20k-line file — the editor visibly locking up
+while typing. Now neither scans during an edit: `words(in:)` serves the last completed scan,
+symbols are cached alongside it, and both refresh on a 0.4 s idle timer (`bufferWordRefreshDelay`)
+scheduled from `didEdit` and pushed back by each further edit. `didReplaceDocument()` clears
+both explicitly, since they no longer self-invalidate.
+
+**Known gap from that change:** a word is not offered as a completion until ~0.4 s after it
+is typed. In practice the list is the same one you would have got — the word being typed is
+filtered at rank time anyway — but a deliberately fast type-then-complete of a brand-new
+identifier can miss it.
+
+`PerformanceTests` asserts the cold scan of a 100k-line buffer stays under 2s, that 20 cached
+lookups beat one cold scan, that **20 keystrokes with edits in between** also beat one cold
+scan (the case whose absence let the stall through — the old loop never edited, so its cache
+always hit), and that one keystroke's ranking stays under 0.1s. The smoke test asserts a
+per-keystroke budget in a real window on top of that.
 
 `CompletionPopup` (MTextUI) is a `.nonactivatingPanel` added as a child window, only ever
 `orderFront`ed and **never made key** — deliberately not built on `Palette`, which is the

@@ -126,6 +126,20 @@ enum PerformanceTests {
                        String(format: "20 cached lookups (%.4fs) must beat one cold scan (%.3fs)",
                               cachedElapsed, scanElapsed))
 
+        // The case that actually matters, and that this test used to miss: querying with an
+        // *edit in between*, which is what typing is. The loop above never edited, so the
+        // cache trivially hit and the real regression — a full rescan per keystroke — sailed
+        // through. Twenty keystrokes must still cost far less than one cold scan.
+        let typingStart = Date()
+        for offset in 0 ..< 20 {
+            _ = document.insert("x", at: Position(line: offset, column: 0))
+            _ = index.words(in: document)
+        }
+        let typingElapsed = Date().timeIntervalSince(typingStart)
+        expectLessThan(typingElapsed, scanElapsed,
+                       String(format: "20 keystrokes (%.4fs) must not each rescan (one scan is %.3fs)",
+                              typingElapsed, scanElapsed))
+
         // One keystroke's worth of work: rank the cached list against the current prefix.
         let rankStart = Date()
         let items = CompletionEngine.complete(prefix: "exa", bufferWords: words, symbols: [])
