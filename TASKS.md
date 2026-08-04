@@ -453,7 +453,7 @@ reads cannot drift from what the app applies.
 | T92 | Code folding: indent-based regions, fold UI in gutter, folded-line layout | L | ✅ |
 | T93 | Minimap: downsampled render from highlight spans, viewport drag | M | ✅ |
 | T94 | Macros: record command stream, replay, save/load | M | ✅ |
-| T95 | Build systems: .sublime-build, run via Process, output panel, error regex + F4 navigation | M | |
+| T95 | Build systems: .sublime-build, run via Process, output panel, error regex + F4 navigation | M | ✅ |
 
 **T90 detail (delivered):** `Sources/MTextCore/Completions.swift` is the whole policy, pure
 and platform-free: `CompletionItem`, a buffer-word scanner, and `CompletionEngine.complete`,
@@ -735,6 +735,53 @@ and typed text. Menu- and palette-driven commands that don't go through `doComma
 Goto, the find bar) aren't captured either. 14 tests in `MacroTests` plus four smoke-test
 assertions covering a live record→replay round trip, including that replay doesn't re-record
 itself.
+
+**T95 detail (delivered):** the first and only feature that executes an external process, so
+it is split deliberately. `Sources/MTextCore/BuildSystem.swift` **only parses** — the
+`.sublime-build` description, `$file`-style variable expansion, and `file_regex` output
+matching — and `BuildRunner` (MTextUI) is the only type that launches anything. Execution is
+reachable **solely from the Build command**: nothing about opening a file, loading a project,
+switching syntax or restoring a session runs a build. Keeping the parse and the launch in
+separate layers is what makes that checkable at a glance rather than a claim, and the command
+actually run is echoed into the output panel so what executed is always visible rather than
+inferred from a config file the user may not have written.
+
+`cmd` (argv) runs through `/usr/bin/env` with **no shell**, so a path with a space in it can't
+word-split or inject; `shell_cmd` goes through `/bin/sh -c` because pipes and redirections are
+the entire reason that key exists. Variants inherit everything they don't override, matching
+real files where a variant declares only `name` and `cmd`. An unknown `$variable` is left **as
+written** rather than replaced with an empty string — silently turning `$unknown/build.sh`
+into `/build.sh` would run something the user never asked for, where leaving it intact fails
+loudly. stdout and stderr share one pipe, since compilers split diagnostics across both and
+interleaving is what lets `file_regex` see everything.
+
+`BuildPanel` is a read-only `NSTextView` at the bottom of the pane (`Pane.buildPanelHost`,
+the same collapse-to-zero-height arrangement as the find bar), not another `EditorView` —
+console output needs no document, undo stack or row map. `file_regex` captures file, line,
+column and message in that order, Sublime's convention, with every group after the first
+optional; relative paths resolve against the working directory, since that is what compilers
+print them relative to. **F4 / ⇧F4** step through the errors and wrap. Output is parsed once
+at exit rather than per chunk: output arrives in arbitrary pieces, and a partial line
+mid-stream could match incorrectly or not at all.
+
+Menu: its own top-level **Build** menu — Build (⌘B), Build With… (⇧⌘B, a palette over every
+applicable system *and* its variants), Cancel Build, Next/Previous Error, Toggle Build Output.
+⌘B repeats the last system rather than re-asking; with several candidates it asks rather than
+guessing which command was meant.
+
+**A bug the smoke test caught:** the echoed command line was itself being scanned by
+`file_regex`, so every build reported a spurious first error pointing at its own command —
+any real compiler invocation contains a path and numbers. The header is now stored separately
+from the output: displayed, not parsed.
+
+Known gaps: no incremental/streaming diagnostic parsing (all at exit), no build-system
+selection persisted per project, `"selector"` filtering only (no `"syntax"` or per-variant
+selectors), no environment inheritance controls beyond `"env"`, and output is plain text with
+no clickable links — F4 is the navigation. Builds are per window, so two windows can build
+simultaneously but one window runs one build at a time (a second Build cancels the first).
+17 tests in `BuildSystemTests` plus six smoke-test assertions that install a fixture, run a
+real process, and check the parsed diagnostic — then remove the fixture, so the check is
+hermetic.
 
 ## Phase 8 — Extensibility & polish
 

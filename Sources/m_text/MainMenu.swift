@@ -15,6 +15,7 @@ func makeMainMenu() -> NSMenu {
     main.addItem(submenu(findMenu(), title: "Find"))
     main.addItem(submenu(gotoMenu(), title: "Goto"))
     main.addItem(submenu(viewMenu(), title: "View"))
+    main.addItem(submenu(buildMenu(), title: "Build"))
     main.addItem(submenu(syntaxMenu(), title: "Syntax"))
     let window = windowMenu()
     NSApplication.shared.windowsMenu = window
@@ -199,6 +200,24 @@ private func gotoMenu() -> NSMenu {
     menu.addItem(.separator())
     menu.addItem(item("Back", #selector(MainWindowController.jumpToPreviousLocation(_:)), "-", [.control]))
     menu.addItem(item("Forward", #selector(MainWindowController.jumpToNextLocation(_:)), "-", [.control, .shift]))
+    return menu
+}
+
+/// T95. Its own top-level menu, like Sublime's — build commands are not View or Edit
+/// actions, and F4/⇧F4 for error navigation are the platform convention.
+private func buildMenu() -> NSMenu {
+    let menu = NSMenu(title: "Build")
+    menu.addItem(withTitle: "Build", action: #selector(MainWindowController.build(_:)), keyEquivalent: "b")
+    menu.addItem(item("Build With…", #selector(MainWindowController.chooseBuildSystem(_:)), "b", [.command, .shift]))
+    menu.addItem(item("Cancel Build", #selector(MainWindowController.cancelBuild(_:)), "c", [.command, .control]))
+    menu.addItem(.separator())
+    menu.addItem(item("Next Error", #selector(MainWindowController.nextBuildError(_:)),
+                      String(UnicodeScalar(NSF4FunctionKey)!), []))
+    menu.addItem(item("Previous Error", #selector(MainWindowController.previousBuildError(_:)),
+                      String(UnicodeScalar(NSF4FunctionKey)!), [.shift]))
+    menu.addItem(.separator())
+    menu.addItem(withTitle: "Toggle Build Output",
+                 action: #selector(MainWindowController.toggleBuildPanel(_:)), keyEquivalent: "")
     return menu
 }
 

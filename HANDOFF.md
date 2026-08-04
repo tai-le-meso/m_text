@@ -51,14 +51,21 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T28 Word wrap | ✅ (no indented continuation rows — see TASKS.md) |
 | T93 Minimap | ✅ (compresses rather than scrolls on large files — see TASKS.md) |
 | T94 Macros | ✅ (replay is not a single undo step — see TASKS.md) |
+| T95 Build systems | ✅ (diagnostics parsed at exit, not streamed — see TASKS.md) |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
 Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
-`RowMap` so it agrees with folding and wrapping), and **T94 ✅** (macros). **T95 (build
-systems) is the last task in Phase 7**, per `TASKS.md`; after it, Phase 8.
+`RowMap` so it agrees with folding and wrapping), **T94 ✅** (macros) and **T95 ✅** (build
+systems). **Phase 7 is complete.** Next is **Phase 8 — Extensibility & polish** (T100–T105),
+per `TASKS.md`; the remaining gaps elsewhere are T63–T65 (find in files) and the partial
+T16/T17/T19 from Phase 1.
 
-Test status: **337 passed, 1298 assertions** — run, along with `swift build -c release`,
-as of T94. (The 8 `SessionTests` that had never been executed when this file was first
+⚠️ **T95 is the only feature that runs an external process.** It executes solely from the
+Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
+(launching) so that stays easy to verify. Keep it that way.
+
+Test status: **354 passed, 1338 assertions** — run, along with `swift build -c release`,
+as of T95. (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -79,6 +86,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
   per tab beside the scroll view (`Tab.container`).
 - **T94** macros: `Macro.swift` (model, `.sublime-macro` parser, recorder with insert
   coalescing), `EditorView+Macros.swift` (hooks in `insertText`/`doCommand`, replay).
+- **T95** build systems: `BuildSystem.swift` (parse + variables + `file_regex`, no execution),
+  `BuildRunner.swift` (the only `Process` launch), `BuildPanel.swift` (output + F4).
 
 ---
 
