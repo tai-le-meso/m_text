@@ -57,6 +57,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T65 Replace in Files | ✅ (⌥⇧⌘F; preview + confirm, refuses files changed since planning) |
 | T102 Diff gutter | ✅ (diff vs disk, not vs VCS — see TASKS.md) |
 | T101 Spell check | ✅ (F6; suggestions not wired to a context menu — see TASKS.md) |
+| T105 Icon + DMG | ✅ (ad-hoc signed only — notarisation documented, not automated) |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
 Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
@@ -68,8 +69,8 @@ reusable tab where double-click or Enter jumps to the match (T63 engine + T64 bu
 **Phase 4 is now complete too** — ⌥⇧⌘F previews a replace into the results tab and asks
 before writing (T65).
 
-Remaining: **Phase 8** — T100 (plugin host), T103 (phantoms), T104 (vi mode), T105
-(icon/DMG); **T101 and T102 are done**. Plus the partial **T16/T17/T19** from
+Remaining: **Phase 8** — T100 (plugin host), T103 (phantoms), T104 (vi mode); **T101, T102
+and T105 are done**. The app is now packageable: `make dmg`. Plus the partial **T16/T17/T19** from
 Phase 1.
 
 ⚠️ **Before starting T100 (JavaScriptCore plugin host), agree the sandboxing approach.** It
@@ -86,7 +87,7 @@ Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildR
 (launching) so that stays easy to verify. Keep it that way.
 
 Test status: **414 passed, 1462 assertions** — run, along with `swift build -c release`,
-as of T101. (The 8 `SessionTests` that had never been executed when this file was first
+as of T105. (T105 is build tooling; it adds no tests.) (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -118,6 +119,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
   (generation-cached marks, gutter bars, Revert Hunk).
 - **T101** spell check: `SpellCheckScopes.swift` (which ranges are eligible),
   `EditorView+SpellCheck.swift` (`NSSpellChecker`, cached per line, squiggles, F6/⌃F6).
+- **T105** packaging: `Tools/make-icon.swift` (icon drawn in code), `make icon` / `make dmg`,
+  `DISTRIBUTION.md` for the signing and notarisation steps that need an Apple account.
 
 ---
 

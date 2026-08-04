@@ -9,6 +9,7 @@ No Xcode project, no SwiftUI, no third-party dependencies. 100% offline; all sta
 - **KNOWLEDGE.md** — **read this when something breaks.** Symptom-indexed record of every
   bug solved here, the AppKit pitfalls behind them, what has been ruled out with evidence,
   and how to diagnose this app
+- **DISTRIBUTION.md** — building the icon and a DMG, and the signing/notarisation steps
 
 ## Build & run (no Xcode)
 
@@ -23,8 +24,16 @@ make test FILTER=PieceTree  # run a subset
 make test-release           # optimised build, includes performance budgets
 make clean
 
+make icon                   # draw the app icon -> build/m_text.icns
+make dmg                    # release build -> build/m_text.dmg (drag-to-install)
+
 MTEXT_SMOKE_TEST=1 make debug   # UI smoke check: drives split + find, exits non-zero on failure
 ```
+
+`make dmg` produces a ~1.4 MB disk image using only `hdiutil`. It is **ad-hoc signed**, so it
+runs on the machine that built it but Gatekeeper will refuse it elsewhere — see
+`DISTRIBUTION.md` for the Developer ID signing and notarisation steps, which need an Apple
+Developer account and network access and so aren't part of the build.
 
 The smoke check exists because the test suite links only `MTextCore` and so can never see
 a window — the two worst bugs in this project's history both lived in that gap. It asserts
