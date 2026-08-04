@@ -140,6 +140,21 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
 
+    // MARK: - Spell check (T101)
+
+    /// `spell_check` from the settings stack. Off by default: it is a prose feature, and
+    /// most files opened in a code editor are not prose.
+    public var spellCheckEnabled = false {
+        didSet {
+            guard spellCheckEnabled != oldValue else { return }
+            spellCheckCache = [:]
+            needsDisplay = true
+        }
+    }
+    /// Misspellings per line, invalidated wholesale when the document changes.
+    var spellCheckCache: [Int: [NSRange]] = [:]
+    var spellCheckGeneration: UInt64?
+
     // MARK: - Diff gutter (T102)
 
     /// The file's lines as last loaded or saved. nil for an unsaved buffer, which has
@@ -755,6 +770,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
             context.restoreGState()
 
             if showsInvisibles { drawInvisibles(entry.text, line: row.line) }
+            drawMisspellings(forRow: row)
             if row.rowInLine == 0 { drawFoldedIndicator(forLine: row.line) }
         }
     }

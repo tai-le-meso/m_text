@@ -33,6 +33,22 @@ public final class MainWindowController: NSWindowController {
     /// Diagnostics the last build produced, for the `MTEXT_SMOKE_TEST` hook (T95). Same
     /// reason as above: the hook lives in the executable target and can't see `BuildPanel`,
     /// which stays internal.
+    /// Spell-check state on the focused editor, for the `MTEXT_SMOKE_TEST` hook (T101).
+    /// The unit tests cover scope filtering; only a live app exercises `NSSpellChecker`.
+    public var smokeTestSpellCheckEnabled: Bool {
+        get { editor.spellCheckEnabled }
+        set { editor.spellCheckEnabled = newValue }
+    }
+    public func smokeTestMisspellingCount(onLine line: Int) -> Int {
+        editor.misspellings(onLine: line).count
+    }
+    public func smokeTestMisspellingDescription(onLine line: Int) -> String {
+        let text = editor.document.line(line) as NSString
+        return editor.misspellings(onLine: line)
+            .map { "\($0.location)+\($0.length)=\(text.substring(with: $0))" }
+            .joined(separator: ", ")
+    }
+
     /// Diff marks on the focused editor, for the `MTEXT_SMOKE_TEST` hook (T102).
     public var smokeTestDiffMarkCount: Int { editor.diffMarks.count }
     /// Puts the caret on `line` and reverts the hunk there, for the smoke hook. Takes the

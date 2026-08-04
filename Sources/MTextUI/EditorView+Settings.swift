@@ -27,6 +27,7 @@ extension EditorView {
         if wrapColumn != settings.wrapWidth { wrapColumn = settings.wrapWidth }
         if wordWrapEnabled != settings.wordWrap { wordWrapEnabled = settings.wordWrap }
         if minimapEnabled != settings.minimap { minimapEnabled = settings.minimap }
+        if spellCheckEnabled != settings.spellCheck { spellCheckEnabled = settings.spellCheck }
         // `settings.colorScheme` is intentionally not applied: colour schemes are loaded
         // and installed by name (`PackageManager`) but never indexed by name, so there is
         // nothing to look one up in — every editor uses `ColorScheme.builtInDefault()`.

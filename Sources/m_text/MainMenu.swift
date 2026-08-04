@@ -267,6 +267,11 @@ private func viewMenu() -> NSMenu {
     menu.addItem(withTitle: "Show Invisibles", action: #selector(EditorView.toggleInvisibles(_:)), keyEquivalent: "")
     // T28. ⌥⌘W is Sublime's binding for Word Wrap.
     menu.addItem(item("Word Wrap", #selector(EditorView.toggleWordWrap(_:)), "w", [.command, .option]))
+    // T101. F6 / ⌃F6 are Sublime's own spell-check bindings.
+    menu.addItem(item("Spell Check", #selector(EditorView.toggleSpellCheck(_:)),
+                      String(UnicodeScalar(NSF6FunctionKey)!), []))
+    menu.addItem(item("Next Misspelling", #selector(EditorView.nextMisspelling(_:)),
+                      String(UnicodeScalar(NSF6FunctionKey)!), [.control]))
     // T93. No key equivalent — Sublime doesn't bind one either; it lives in the menu and
     // therefore the Command Palette.
     menu.addItem(withTitle: "Minimap", action: #selector(EditorView.toggleMinimap(_:)), keyEquivalent: "")

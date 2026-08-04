@@ -348,6 +348,11 @@ extension EditorView {
         case #selector(EditorView.toggleWordWrap(_:)):
             menuItem.state = wordWrapEnabled ? .on : .off
             return true
+        case #selector(EditorView.toggleSpellCheck(_:)):
+            menuItem.state = spellCheckEnabled ? .on : .off
+            return true
+        case #selector(EditorView.nextMisspelling(_:)):
+            return spellCheckEnabled
         case #selector(EditorView.revertHunk(_:)):
             return canRevertHunk
         case #selector(EditorView.toggleMacroRecording(_:)):
