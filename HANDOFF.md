@@ -54,6 +54,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T95 Build systems | ✅ (diagnostics parsed at exit, not streamed — see TASKS.md) |
 | T63 Find in Files | ✅ engine |
 | T64 Results buffer | ✅ (⇧⌘F; buffer is editable, which desyncs the line map — see TASKS.md) |
+| T65 Replace in Files | ✅ (⌥⇧⌘F; preview + confirm, refuses files changed since planning) |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
 Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
@@ -62,16 +63,22 @@ systems). **Phase 7 is complete.**
 
 **Find in Files is usable**: ⇧⌘F prompts, sweeps the project, and streams results into a
 reusable tab where double-click or Enter jumps to the match (T63 engine + T64 buffer).
-**T65 (Replace in Files, with preview and confirm) is the next task** — it is the last of
-Phase 4 and the only remaining gap outside Phase 8. After that, **Phase 8** (T100–T105) plus
-the partial T16/T17/T19 from Phase 1.
+**Phase 4 is now complete too** — ⌥⇧⌘F previews a replace into the results tab and asks
+before writing (T65).
+
+Remaining: **Phase 8** (T100–T105) and the partial **T16/T17/T19** from Phase 1.
+
+⚠️ **T65 writes to files that are not open and have no undo stack.** `ReplaceInFiles.plan`
+is read-only; `ReplaceInFiles.apply` is the only writer and is reachable from exactly one
+call site, inside the confirmation alert's handler. It refuses any file whose checksum moved
+since planning. Keep all three of those properties.
 
 ⚠️ **T95 is the only feature that runs an external process.** It executes solely from the
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **377 passed, 1390 assertions** — run, along with `swift build -c release`,
-as of T64. (The 8 `SessionTests` that had never been executed when this file was first
+Test status: **389 passed, 1418 assertions** — run, along with `swift build -c release`,
+as of T65. (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -97,6 +104,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
 - **T63/T64** find in files: `FindInFiles.swift` (streaming engine, reuses `FileIndex.walk`
   and `SearchMatcher`) and `FindResults.swift` (results text + buffer-line→match map),
   surfaced as ⇧⌘F into a reusable results tab.
+- **T65** replace in files: `ReplaceInFiles.swift` — two-phase plan/apply with a checksum
+  staleness guard, previewed into the results tab and confirmed before writing (⌥⇧⌘F).
 
 ---
 

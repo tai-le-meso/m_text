@@ -176,6 +176,10 @@ private func findMenu() -> NSMenu {
     menu.addItem(.separator())
     menu.addItem(item("Find in Files…", #selector(MainWindowController.findInFiles(_:)),
                       "f", [.command, .shift]))
+    // T65. Deliberately a longer chord than Find in Files: this one writes to files that
+    // aren't open. It previews into a tab and asks before writing anything.
+    menu.addItem(item("Replace in Files…", #selector(MainWindowController.replaceInFiles(_:)),
+                      "f", [.command, .shift, .option]))
     menu.addItem(withTitle: "Find All",
                  action: #selector(EditorView.selectAllMatches(_:)), keyEquivalent: "")
 

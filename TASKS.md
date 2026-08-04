@@ -81,7 +81,7 @@ scanned at launch so drop-in grammars override the built-ins.
 | T62 | Replace / Replace All with `$1`/`\1` captures, preserve-case | M | ✅ (in-selection scope modelled, no UI yet) |
 | T63 | Find in Files: parallel file walker (excludes binaries/patterns), streaming matcher | L | ✅ engine only — no UI until T64 |
 | T64 | Results buffer: grouped by file, context lines, double-click → jump, live append | M | ✅ |
-| T65 | Replace in Files with preview + confirm | M | — |
+| T65 | Replace in Files with preview + confirm | M | ✅ |
 
 Search is line-oriented, so a regex cannot span a line break — a deliberate consequence
 of keeping memory bounded on large files. `SearchQuery` is the single model behind ⌘D,
