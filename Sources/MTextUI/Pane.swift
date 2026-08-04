@@ -15,10 +15,14 @@ import AppKit
 final class Tab {
     let editor: EditorView
     let scrollView: NSScrollView
+    /// Wraps the scroll view *and* the minimap (T93). Showing or hiding a tab toggles this,
+    /// not the scroll view, so the overview strip travels with its document.
+    let container: NSView
 
-    init(editor: EditorView, scrollView: NSScrollView) {
+    init(editor: EditorView, scrollView: NSScrollView, container: NSView) {
         self.editor = editor
         self.scrollView = scrollView
+        self.container = container
     }
 
     var title: String { editor.document.fileURL?.lastPathComponent ?? "untitled" }
@@ -127,7 +131,7 @@ final class Pane {
     func activate(_ tab: Tab) {
         guard tabs.contains(where: { $0 === tab }) else { return }
         activeTab = tab
-        for candidate in tabs { candidate.scrollView.isHidden = (candidate !== tab) }
+        for candidate in tabs { candidate.container.isHidden = (candidate !== tab) }
     }
 
     func refreshTabBar() {

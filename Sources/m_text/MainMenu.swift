@@ -224,6 +224,9 @@ private func viewMenu() -> NSMenu {
     menu.addItem(withTitle: "Show Invisibles", action: #selector(EditorView.toggleInvisibles(_:)), keyEquivalent: "")
     // T28. ⌥⌘W is Sublime's binding for Word Wrap.
     menu.addItem(item("Word Wrap", #selector(EditorView.toggleWordWrap(_:)), "w", [.command, .option]))
+    // T93. No key equivalent — Sublime doesn't bind one either; it lives in the menu and
+    // therefore the Command Palette.
+    menu.addItem(withTitle: "Minimap", action: #selector(EditorView.toggleMinimap(_:)), keyEquivalent: "")
     menu.addItem(.separator())
     menu.addItem(withTitle: "Increase Font Size",
                  action: #selector(EditorView.increaseFontSize(_:)), keyEquivalent: "+")

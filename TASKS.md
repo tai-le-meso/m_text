@@ -451,7 +451,7 @@ reads cannot drift from what the app applies.
 | T90 | Autocomplete: buffer-word + index symbols, inline popup, fuzzy ranked, tab/enter policy | L | ✅ |
 | T91 | Snippets: .sublime-snippet parser, tab stops $1/$2, mirrors, placeholders, $SELECTION vars | L | ✅ |
 | T92 | Code folding: indent-based regions, fold UI in gutter, folded-line layout | L | ✅ |
-| T93 | Minimap: downsampled render from highlight spans, viewport drag | M | |
+| T93 | Minimap: downsampled render from highlight spans, viewport drag | M | ✅ |
 | T94 | Macros: record command stream, replay, save/load | M | |
 | T95 | Build systems: .sublime-build, run via Process, output panel, error regex + F4 navigation | M | |
 
@@ -655,6 +655,43 @@ between panes showing the same file, and is not persisted in the session. Home/E
 to the line's edges rather than the row's. Proportional fonts wrap approximately, as above.
 26 tests across `WordWrapTests` and `RowMapTests`, plus a perf case and three smoke-test
 assertions.
+
+**T93 detail (delivered):** `Sources/MTextUI/Minimap.swift` draws from **highlight spans**
+rather than shaped text — at two points per row there is no glyph to read, so what makes the
+strip legible is the colour and shape of the code, which the spans already describe and
+`HighlightService` has already computed. Runs of non-whitespace become one filled rect each
+rather than one per character; at 1pt per column that would be thousands of fills per repaint
+for the same result. Lines whose spans haven't arrived yet fall back to a dimmed foreground
+colour, so the strip is never blank while the background sweep catches up.
+
+It renders **rows via the editor's `RowMap`**, not document lines. A minimap that disagreed
+with what folding and wrapping put on screen would be worse than none: dragging it would land
+somewhere other than where it pointed. Wrapped lines therefore read as several rows and
+folded blocks vanish from the strip exactly as they do from the editor.
+
+Past a screenful the strip **compresses** rather than scrolls, so the whole file stays
+represented — the property that makes it useful for orientation at all. Rows are sampled past
+`maximumRowsDrawn` (several rows share a point line beyond that, so drawing them all is work
+for pixels that overwrite each other) and culled to the dirty rect, so the viewport box moving
+doesn't repaint the whole strip.
+
+Click or drag **centres** the row rather than putting it at the top, which is what makes a
+click read as "take me there". Scrolling over the strip scrolls the document.
+
+Layout: the minimap and the editor's scroll view sit side by side in a per-tab container
+(`Tab.container`), so the strip belongs to *its* document — switching tabs shows that tab's
+overview, and hiding a tab hides both together. It collapses to zero width when off rather
+than being removed, so only a constraint changes; turning it on re-runs `wrapWidthDidChange()`
+because the editor's viewport just got narrower and wrapping has to re-measure. Setting
+`minimap` (default off) plus **View ▸ Minimap**, written as a view override like the other
+View toggles so a settings reload can't undo it.
+
+Known gaps: no code-folding or diff markers in the strip; no hover preview; the strip is not
+persisted per tab in the session; and because it compresses rather than scrolls, a very large
+file's rows are not individually distinguishable — unavoidable at any fixed strip height, but
+worth stating. No unit tests (it is AppKit drawing, consistent with the rest of MTextUI);
+covered by four smoke-test assertions that it takes real width, gives it back exactly, and
+collapses when off.
 
 ## Phase 8 — Extensibility & polish
 

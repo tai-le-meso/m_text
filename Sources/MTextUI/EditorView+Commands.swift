@@ -297,6 +297,11 @@ extension EditorView {
         setViewOverride("word_wrap", .bool(!wordWrapEnabled))
     }
 
+    /// T93 — same pattern for the minimap.
+    @objc public func toggleMinimap(_ sender: Any?) {
+        setViewOverride("minimap", .bool(!minimapEnabled))
+    }
+
     // Font zoom is a view override for the same reason. It deliberately overrides only
     // `font_size` and leaves `font_face` alone, so zooming no longer discards a
     // `font_face` chosen in settings the way assigning `monospacedSystemFont` here did.
@@ -342,6 +347,9 @@ extension EditorView {
             return true
         case #selector(EditorView.toggleWordWrap(_:)):
             menuItem.state = wordWrapEnabled ? .on : .off
+            return true
+        case #selector(EditorView.toggleMinimap(_:)):
+            menuItem.state = minimapEnabled ? .on : .off
             return true
         case #selector(EditorView.showCompletions(_:)):
             // Mirrors the guards in `showCompletions(_:)` itself, so the menu greys out

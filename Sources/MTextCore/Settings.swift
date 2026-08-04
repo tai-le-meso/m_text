@@ -147,6 +147,8 @@ public struct EditorSettings: Equatable {
     /// Columns to wrap at. 0 means "the window width", which is the common case; a fixed
     /// number is for people who wrap to a ruler.
     public var wrapWidth: Int
+    /// T93 — the downsampled overview strip beside the editor.
+    public var minimap: Bool
 
     /// What one press of Tab inserts (and what indent/outdent shift by). Tabs mode always
     /// inserts a single `\t` regardless of `tab_size` — the width of a tab is a rendering
@@ -179,6 +181,7 @@ public enum SettingsResolver {
         "auto_complete": .bool(true),
         "word_wrap": .bool(false),
         "wrap_width": .int(0),
+        "minimap": .bool(false),
     ]
 
     public static var defaultLayer: SettingsLayer {
@@ -241,6 +244,9 @@ public enum SettingsResolver {
         // Column to wrap at. 0 wraps to the window width; set a number to wrap to a ruler.
         "wrap_width": 0,
 
+        // Show the minimap: a downsampled overview of the file beside the editor.
+        "minimap": false,
+
         // Colour scheme by name, e.g. "Monokai". Omitted by default, which keeps
         // whichever scheme the app loaded at launch.
         // "color_scheme": "Monokai",
@@ -272,7 +278,8 @@ public enum SettingsResolver {
             colorScheme: value("color_scheme")?.stringValue,
             autoComplete: value("auto_complete")?.boolValue ?? true,
             wordWrap: value("word_wrap")?.boolValue ?? false,
-            wrapWidth: max(0, value("wrap_width")?.intValue ?? 0)
+            wrapWidth: max(0, value("wrap_width")?.intValue ?? 0),
+            minimap: value("minimap")?.boolValue ?? false
         )
     }
 

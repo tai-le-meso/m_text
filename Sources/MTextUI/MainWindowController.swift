@@ -354,17 +354,55 @@ public final class MainWindowController: NSWindowController {
         scrollView.drawsBackground = false
         scrollView.documentView = editorView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.isHidden = true
 
-        pane.editorContainer.addSubview(scrollView)
+        // T93: the scroll view and the minimap sit side by side in a per-tab container, so
+        // the minimap belongs to *this* document rather than to the pane — switching tabs
+        // shows that tab's own overview, and hiding one tab's container hides both together.
+        let minimap = Minimap(frame: .zero)
+        minimap.editor = editorView
+        minimap.translatesAutoresizingMaskIntoConstraints = false
+        editorView.minimap = minimap
+
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(scrollView)
+        container.addSubview(minimap)
+
+        // Collapsed to zero width when off, rather than removed: the constraint is the only
+        // thing that has to change, and the view keeps its editor reference for next time.
+        let minimapWidth = minimap.widthAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: pane.editorContainer.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: pane.editorContainer.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: pane.editorContainer.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: pane.editorContainer.bottomAnchor),
+            scrollView.topAnchor.constraint(equalTo: container.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: minimap.leadingAnchor),
+
+            minimap.topAnchor.constraint(equalTo: container.topAnchor),
+            minimap.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            minimap.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            minimapWidth,
         ])
 
-        let tab = Tab(editor: editorView, scrollView: scrollView)
+        // Hidden until activated — on the *container* now, so the minimap hides with it.
+        container.isHidden = true
+        pane.editorContainer.addSubview(container)
+        NSLayoutConstraint.activate([
+            container.topAnchor.constraint(equalTo: pane.editorContainer.topAnchor),
+            container.leadingAnchor.constraint(equalTo: pane.editorContainer.leadingAnchor),
+            container.trailingAnchor.constraint(equalTo: pane.editorContainer.trailingAnchor),
+            container.bottomAnchor.constraint(equalTo: pane.editorContainer.bottomAnchor),
+        ])
+
+        editorView.onMinimapVisibilityChanged = { [weak editorView] in
+            guard let editorView else { return }
+            minimapWidth.constant = editorView.minimapEnabled ? Minimap.preferredWidth : 0
+            // The editor's viewport just changed width, so wrapping has to re-measure (T28).
+            container.layoutSubtreeIfNeeded()
+            editorView.wrapWidthDidChange()
+            editorView.refreshMinimap()
+        }
+
+        let tab = Tab(editor: editorView, scrollView: scrollView, container: container)
         pane.append(tab)
         pane.refreshTabBar()
         // After `pane.append`, so the tab is reachable from `allTabs` — and after
@@ -546,7 +584,7 @@ public final class MainWindowController: NSWindowController {
         else { return }
         let wasActive = tab === owningPane.activeTab
         owningPane.removeTab(at: index)
-        tab.scrollView.removeFromSuperview()
+        tab.container.removeFromSuperview()
 
         guard !owningPane.tabs.isEmpty else {
             if panes.count > 1 {

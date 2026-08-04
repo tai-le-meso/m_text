@@ -49,10 +49,12 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T91 Snippets | ✅ (only typing/backspace keep a session alive — see TASKS.md) |
 | T92 Code folding | ✅ (folds not persisted in the session — see TASKS.md) |
 | T28 Word wrap | ✅ (no indented continuation rows — see TASKS.md) |
+| T93 Minimap | ✅ (compresses rather than scrolls on large files — see TASKS.md) |
 
 Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
-Phase 2 — it was waiting on T92's line↔row mapping). **T93 (minimap) is the next task**, per
-`TASKS.md`; it can render from `RowMap` rather than re-deriving layout.
+Phase 2 — it was waiting on T92's line↔row mapping), and **T93 ✅** (minimap, rendering from
+`RowMap` so it agrees with folding and wrapping). **T94 (macros) is the next task**, per
+`TASKS.md`.
 
 Test status: **323 passed, 1272 assertions** — run, along with `swift build -c release`,
 as of T28. (The 8 `SessionTests` that had never been executed when this file was first
@@ -72,6 +74,8 @@ and known gaps — read that for the task you're touching rather than re-derivin
 - **T92** folding: `Folding.swift` (`FoldFinder` + `FoldSet`), `EditorView+Folding.swift`.
 - **T28** word wrap: `WordWrap.swift` (breaking), `RowMap.swift` (folds + wrap unified),
   `VisibleRows` replacing T92's `VisibleLines` throughout drawing.
+- **T93** minimap: `Minimap.swift`, drawn from highlight spans over `RowMap` rows, mounted
+  per tab beside the scroll view (`Tab.container`).
 
 ---
 
