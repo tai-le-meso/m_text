@@ -18,6 +18,7 @@ you will arrive: something looks wrong on screen and you don't yet know why.
 | Find bar is on one side but searches/highlights the other; match count belongs to neither | `focusedPaneIndex` out of step with real focus | [S3](#s3) |
 | ⌘F always opens on the same side regardless of which pane you're in | ⌘F trusted the stored focus index, not the editor that received it | [S3](#s3) |
 | Text sits in a thin strip at the top; clicking below it does nothing | Document view frame collapsed to content size | [S4](#s4) |
+| "Can't edit or do anything" — window fine, not crashed, but typing barely registers; only in big files | A full-buffer scan running on every keystroke | [S5](#s5) |
 | Any pane/divider/sizing weirdness after adding a split | `NSSplitView` never lays out a newly added subview | [P1](#p1) |
 | A "fix" that changes focus appears to do nothing at all | `dismissFind()` steals first responder back | [P2](#p2) |
 | Build fails right after moving a type or adding a `public` API | See [compile bug classes](#compile-bug-classes) | — |
@@ -207,6 +208,51 @@ stayed that way forever.
 notification from the scrolling** the existing observer watched — and call `updateFrameSize()`
 from it, plus one immediate call to catch the size the clip view already has
 (`EditorView.configureScrollView` / `clipFrameChanged`).
+
+---
+
+<a id="s5"></a>
+### S5 — Editor unresponsive while typing in a large file
+
+**Symptom.** Reported as "can't edit or create or take any actions for text". The window
+looks normal and the app is not crashed or hung — every *keystroke* just takes long enough
+that the editor feels dead. Small files are fine, so it looks intermittent.
+
+**Root cause.** Two full-buffer scans ran on the keystroke path, both inside autocomplete
+(T90), and both invisible to the existing tests:
+
+- `BufferWordIndex.words(in:)` cached its scan against `TextDocument.generation`. That is
+  the right key for `LayoutCache` and `HighlightService`, which are consulted while
+  *drawing* — but this is consulted while *typing*, and `generation` bumps on every
+  keypress, so the cache missed **every single time**. Its own doc comment claimed "a run
+  of keystrokes reuses one scan"; the code never did that.
+- `completionSymbols()` re-ran `SymbolExtractor.extractSymbols` over the whole document per
+  keystroke, directly beneath a comment warning that walking the document from a keypress
+  "is exactly the kind of thing that makes typing stutter".
+
+Measured in a 20k-line file (the existing scan cap, so this is the bounded worst case):
+**79 ms/key release, 154 ms/key debug** — ~85 ms of it symbols, the rest word scanning.
+
+**Fix.** Neither scan runs during an edit. `words(in:)` serves the last completed scan and
+never rescans itself; symbols are cached the same way. Both refresh on a 0.4 s idle timer
+scheduled from `didEdit` and pushed back by each further edit, so a burst of typing costs
+nothing and the rescan lands in the pause after it. `didReplaceDocument()` clears both
+explicitly — they no longer self-invalidate on `generation`, so opening a new file would
+otherwise offer the old file's words. Result: **5.4 ms/key release, 3 ms debug.**
+
+**Why nothing caught it.** `PerformanceTests` *did* cover this area — but its "cached
+lookup" loop re-queried 20 times **without editing in between**, so the cache trivially hit
+and the real pattern (edit → query → edit → query) was never exercised. The lesson
+generalises: a cache test that doesn't reproduce the caller's actual call *sequence* proves
+nothing. Both the unit test and the smoke check were re-verified to fail against the
+unfixed code (1.8 s vs one 0.09 s scan; 160 ms/key).
+
+**If it recurs.** `MTEXT_SMOKE_TEST=1 make debug` now asserts a per-keystroke budget in a
+20k-line buffer. To find *which* work returned, time the stages of `EditorView.didEdit` and
+`insertText` — a temporary `lap()`-style print around each call is what located both of
+these, and it took one run each. The remaining per-keystroke cost is the minimap (~5 ms
+release), which redraws in full; that is the next thing to look at if this budget starts
+being tight.
 
 ---
 

@@ -107,8 +107,16 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// `EditorView`, and a session restore can open dozens at once, none of which need a
     /// floating panel until someone types in them.
     var completionPopup: CompletionPopup?
-    /// Buffer words for this document, cached against `TextDocument.generation`.
+    /// Buffer words for this document. Rescanned on an idle timer, never during an edit —
+    /// see `scheduleBufferWordRefresh()`.
     let bufferWordIndex = BufferWordIndex()
+    /// Pending idle rescan of the completion caches, pushed back by each further edit.
+    var bufferWordRefreshTimer: Timer?
+    /// This file's symbols, offered alongside buffer words. Extracting them walks the whole
+    /// document, so — like `bufferWordIndex` — it is refreshed on the idle timer and never
+    /// during a keystroke. `nil` generation means "never extracted", which forces one.
+    var cachedCompletionSymbols: [CompletionItem] = []
+    var cachedCompletionSymbolsGeneration: UInt64?
     /// The word Escape was pressed in, so typing on doesn't immediately reopen the list.
     /// Cleared when a new word starts, on commit, and by an explicit ⌃Space.
     var suppressedCompletionWord: String?
@@ -381,8 +389,12 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     }
 
     private func didReplaceDocument() {
-        // Candidates came from the old document. (`bufferWordIndex` needs no explicit
-        // invalidation — it keys on `document.generation`, which has already moved.)
+        // Candidates came from the old document, and both completion caches are now
+        // refreshed on an idle timer rather than keyed on `document.generation` (see
+        // `BufferWordIndex`), so replacing the document has to clear them explicitly —
+        // otherwise the new file offers the old one's words until the timer next fires.
+        bufferWordIndex.invalidate()
+        cachedCompletionSymbolsGeneration = nil
         hideCompletions()
         suppressedCompletionWord = nil
         // Folds describe the old document's line structure (T92), annotations point at its
@@ -891,6 +903,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         rowMapDidEdit(fromLine: firstChangedLine)
         refreshMinimap()
         foldsDidEdit(fromLine: firstChangedLine)
+        scheduleBufferWordRefresh()
         if snippetSession != nil, !isApplyingSnippetMirrors {
             if let pending = pendingSnippetEdit {
                 pendingSnippetEdit = nil

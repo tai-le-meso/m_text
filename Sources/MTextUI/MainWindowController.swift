@@ -42,6 +42,30 @@ public final class MainWindowController: NSWindowController {
         return editor.frame.height
     }
     public func smokeTestSetWordWrap(_ enabled: Bool) { editor.wordWrapEnabled = enabled }
+    public func smokeTestSetMinimapEnabled(_ enabled: Bool) { editor.minimapEnabled = enabled }
+
+    /// What a click in the middle of the focused editor's visible area actually lands on.
+    /// A view mounted *over* the editor — a minimap, an overlay host, a zero-height bar
+    /// that still captures — leaves the editor looking perfectly normal while making it
+    /// inert to both clicks and keys. Focusing the editor programmatically, which every
+    /// other hook here does, cannot see that.
+    public func smokeTestViewUnderEditorCentre() -> String {
+        guard let window, let contentView = window.contentView else { return "no window" }
+        let visible = editor.visibleRect
+        guard !visible.isEmpty else { return "editor has an empty visible rect" }
+        let inWindow = editor.convert(CGPoint(x: visible.midX, y: visible.midY), to: nil)
+        guard let hit = contentView.hitTest(inWindow) else { return "nothing" }
+        return String(describing: type(of: hit))
+    }
+
+    /// Focuses the editor the other hooks drive, and reports whether it actually took
+    /// first responder. Typing checks have to send events at the *window*, so they need
+    /// both halves to be the same editor — see `smokeTestEditorHeight` on why the view
+    /// tree can't be trusted to pick it.
+    @discardableResult
+    public func smokeTestFocusEditor() -> Bool {
+        window?.makeFirstResponder(editor) == true && window?.firstResponder === editor
+    }
 
     /// Inline-annotation hooks for `MTEXT_SMOKE_TEST` (T103).
     public func smokeTestSetPhantom(line: Int, text: String) {

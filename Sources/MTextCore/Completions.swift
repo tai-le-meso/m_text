@@ -129,14 +129,22 @@ public enum CompletionEngine {
     }
 }
 
-/// Caches one document's buffer words, invalidated by `TextDocument.generation`.
+/// Caches one document's buffer words for autocomplete.
 ///
-/// Autocomplete re-queries on every keystroke, and rescanning the whole buffer that often
-/// is the obvious way to make typing feel slow. Keying the cache on the document's
-/// existing edit counter — the same mechanism `LayoutCache` and `HighlightService` use to
-/// spot stale work — means a run of keystrokes that only extends the current word reuses
-/// one scan. The word being typed is filtered at *rank* time, not scan time, so it doesn't
-/// invalidate anything.
+/// **The scan never runs on the keystroke path.** This class used to key its cache on
+/// `TextDocument.generation`, the same staleness counter `LayoutCache` and
+/// `HighlightService` use — but those are consulted while *drawing*, whereas this is
+/// consulted while *typing*, and `generation` bumps on every single keystroke. The cache
+/// therefore missed every time: each keypress rescanned the whole buffer, costing ~80 ms
+/// at the 20k-line cap in a release build, which is the editor visibly locking up as you
+/// type. See `KNOWLEDGE.md`, S5.
+///
+/// So `words(in:)` serves whatever the last completed scan produced and never rescans on
+/// its own. Refreshing is the caller's job, from somewhere that isn't a keypress — the
+/// editor does it on a short idle timer after editing stops (`scheduleBufferWordRefresh`
+/// in `EditorView+Completion`). The cost is that a word just typed isn't offered as a
+/// completion until the pause; the word being typed was already filtered at rank time, so
+/// in practice the list is the same one the user would have got anyway.
 public final class BufferWordIndex {
 
     private var cachedGeneration: UInt64?
@@ -144,11 +152,22 @@ public final class BufferWordIndex {
 
     public init() {}
 
+    /// The last completed scan. Scans once on first use, so a caller that never refreshes
+    /// still gets a usable list rather than nothing.
     public func words(in document: TextDocument) -> [String] {
-        if cachedGeneration == document.generation { return cachedWords }
+        if cachedGeneration == nil { refresh(in: document) }
+        return cachedWords
+    }
+
+    /// Rescans the buffer. Call when editing has *paused* — never from an edit itself.
+    public func refresh(in document: TextDocument) {
         cachedWords = CompletionEngine.bufferWords(in: document)
         cachedGeneration = document.generation
-        return cachedWords
+    }
+
+    /// Whether the cached scan predates the document's current contents.
+    public func isStale(for document: TextDocument) -> Bool {
+        cachedGeneration != document.generation
     }
 
     public func invalidate() {

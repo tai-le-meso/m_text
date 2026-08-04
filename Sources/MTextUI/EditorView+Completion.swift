@@ -16,6 +16,35 @@ extension EditorView {
 
     var isCompletionVisible: Bool { completionPopup?.isVisible ?? false }
 
+    // MARK: - Keeping the word index fresh
+
+    /// How long editing must pause before the buffer is rescanned for completion words.
+    /// Long enough that a burst of typing rescans once at the end rather than repeatedly,
+    /// short enough that a word is offered by the time anyone could want to complete it.
+    static let bufferWordRefreshDelay: TimeInterval = 0.4
+
+    /// Rescans the buffer for completion words once editing goes quiet.
+    ///
+    /// Called from `didEdit`, but the scan itself deliberately happens *later*, on a timer:
+    /// it is O(buffer) and used to run inside the keypress, which made typing in a large
+    /// file stall on every character (see `BufferWordIndex`). Each edit pushes the timer
+    /// back, so continuous typing costs nothing and the rescan lands in the pause after it.
+    func scheduleBufferWordRefresh() {
+        bufferWordRefreshTimer?.invalidate()
+        guard autoCompleteEnabled else { return }
+        bufferWordRefreshTimer = Timer.scheduledTimer(
+            withTimeInterval: EditorView.bufferWordRefreshDelay, repeats: false
+        ) { [weak self] _ in
+            guard let self else { return }
+            if self.bufferWordIndex.isStale(for: self.document) {
+                self.bufferWordIndex.refresh(in: self.document)
+            }
+            if self.cachedCompletionSymbolsGeneration != self.document.generation {
+                self.refreshCompletionSymbols()
+            }
+        }
+    }
+
     // MARK: - Triggering
 
     /// Called after any edit that could change what should be offered. Re-queries when the
@@ -89,18 +118,30 @@ extension EditorView {
         completionPopup?.hide()
     }
 
-    /// Current-file symbols from the already-computed highlight scopes, plus whatever the
-    /// window controller contributes from the project index.
+    /// Current-file symbols, plus whatever the window controller contributes from the
+    /// project index.
     ///
-    /// Never *starts* an index: this runs on the keystroke path, and kicking off a
+    /// Never *starts* a project index: this runs on the keystroke path, and kicking off a
     /// project-wide symbol walk from a keypress is exactly the kind of thing that makes
     /// typing stutter. Whatever the index already holds is offered; anything else isn't.
+    /// That reasoning applied just as much to extracting *this file's* symbols, which used
+    /// to happen here on every keystroke — hence the cache below.
     private func completionSymbols() -> [CompletionItem] {
-        var items = SymbolExtractor
-            .extractSymbols(from: document, grammar: highlightService.grammar)
-            .map { CompletionItem(text: $0.name, kind: .symbol, detail: "line \($0.line + 1)") }
+        // Extracted on the idle timer, not here: this walks the whole document, and doing
+        // it per keystroke cost ~85 ms a key in a 20k-line file — the same stall
+        // `BufferWordIndex` describes, in the same feature. Only the first use scans
+        // inline, so a list asked for before the timer has ever fired isn't empty.
+        if cachedCompletionSymbolsGeneration == nil { refreshCompletionSymbols() }
+        var items = cachedCompletionSymbols
         items.append(contentsOf: onCompletionSymbols?() ?? [])
         return items
+    }
+
+    func refreshCompletionSymbols() {
+        cachedCompletionSymbols = SymbolExtractor
+            .extractSymbols(from: document, grammar: highlightService.grammar)
+            .map { CompletionItem(text: $0.name, kind: .symbol, detail: "line \($0.line + 1)") }
+        cachedCompletionSymbolsGeneration = document.generation
     }
 
     private func ensureCompletionPopup() -> CompletionPopup {

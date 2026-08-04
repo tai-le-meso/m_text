@@ -139,17 +139,33 @@ enum CompletionTests {
     // MARK: - Caching
 
     /// Autocomplete re-queries on every keystroke, so rescanning the whole buffer each time
-    /// is how typing gets slow. The cache keys on `TextDocument.generation`.
+    /// is how typing gets slow. `words(in:)` therefore never rescans on its own — an edit
+    /// makes the cache *stale*, and refreshing is the caller's job, off the keystroke path.
+    ///
+    /// This test used to assert the opposite ("an edit invalidates the cache"), which is
+    /// precisely the behaviour that stalled the editor: `generation` bumps on every
+    /// keypress, so the cache missed every single time.
     static func testBufferWordIndexCaching() {
         let doc = document("alpha beta")
         let index = BufferWordIndex()
-        expectEqual(Set(index.words(in: doc)), ["alpha", "beta"])
+        expectEqual(Set(index.words(in: doc)), ["alpha", "beta"], "first use scans")
 
         // Same generation: the cached list comes back even though we ask again.
         expectEqual(Set(index.words(in: doc)), ["alpha", "beta"])
+        expectFalse(index.isStale(for: doc), "nothing has changed yet")
 
         _ = doc.insert(" gamma", at: Position(line: 0, column: 10))
+        expectTrue(index.isStale(for: doc), "an edit leaves the scan out of date")
+        expectEqual(Set(index.words(in: doc)), ["alpha", "beta"],
+                    "but asking again must NOT rescan — that is the keystroke path")
+
+        index.refresh(in: doc)
         expectEqual(Set(index.words(in: doc)), ["alpha", "beta", "gamma"],
-                    "an edit bumps the generation and invalidates the cache")
+                    "an explicit refresh picks the new word up")
+        expectFalse(index.isStale(for: doc))
+
+        index.invalidate()
+        expectEqual(Set(index.words(in: doc)), ["alpha", "beta", "gamma"],
+                    "invalidate forces the next use to scan afresh")
     }
 }
