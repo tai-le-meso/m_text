@@ -226,6 +226,9 @@ private func buildMenu() -> NSMenu {
     menu.addItem(item("Previous Error", #selector(MainWindowController.previousBuildError(_:)),
                       String(UnicodeScalar(NSF4FunctionKey)!), [.shift]))
     menu.addItem(.separator())
+    // T103: build errors also appear inline under the lines they refer to; this clears them.
+    menu.addItem(withTitle: "Clear Inline Errors",
+                 action: #selector(EditorView.clearPhantoms(_:)), keyEquivalent: "")
     menu.addItem(withTitle: "Toggle Build Output",
                  action: #selector(MainWindowController.toggleBuildPanel(_:)), keyEquivalent: "")
     return menu

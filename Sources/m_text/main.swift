@@ -330,6 +330,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "a correct line reports nothing")
             }
 
+            /// T103: a phantom has to *reserve a row*, pushing the lines below it down —
+            /// that is the difference between an inline annotation and an overlay drawn on
+            /// top of real text. Only a live editor shows the canvas actually growing.
+            func phantomCheck() {
+                controller.smokeTestSetWordWrap(false)
+                controller.smokeTestClearPhantoms()
+                // Taller than the viewport, so the canvas height is content-driven rather
+                // than pinned to the viewport floor — the same trap the folding check hit.
+                controller.smokeTestEditorText = String(repeating: "line of text\n", count: 200)
+                let before = controller.smokeTestEditorHeight
+
+                controller.smokeTestSetPhantom(line: 5, text: "error: something went wrong")
+                let withPhantom = controller.smokeTestEditorHeight
+                check(withPhantom > before,
+                      "an annotation reserves a row (\(before) -> \(withPhantom))")
+
+                controller.smokeTestClearPhantoms()
+                check(controller.smokeTestEditorHeight == before,
+                      "clearing gives the row back exactly")
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
@@ -340,6 +361,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 { buildResultCheck() },
                 { diffCheck() },
                 { spellCheckCheck() },
+                { phantomCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")

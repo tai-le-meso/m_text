@@ -140,6 +140,27 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
 
+    // MARK: - Phantoms (T103)
+
+    /// Inline annotations shown between lines. Changing them re-measures the row map, since
+    /// each one takes a row.
+    var phantoms = PhantomSet() {
+        didSet {
+            guard phantoms != oldValue else { return }
+            rowMap.setPhantomRows(phantoms.rowsPerLine)
+            updateFrameSize()
+            needsDisplay = true
+        }
+    }
+
+    /// Replaces one source's annotations, leaving other sources' alone.
+    public func setPhantoms(_ new: [Phantom], owner: String) {
+        var updated = phantoms
+        updated.removeAll(owner: owner)
+        for phantom in new { updated.add(phantom) }
+        phantoms = updated
+    }
+
     // MARK: - Spell check (T101)
 
     /// `spell_check` from the settings stack. Off by default: it is a prose feature, and
@@ -364,9 +385,10 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         // invalidation — it keys on `document.generation`, which has already moved.)
         hideCompletions()
         suppressedCompletionWord = nil
-        // Folds describe the old document's line structure (T92), and every line's wrap
-        // has to be measured afresh (T28).
+        // Folds describe the old document's line structure (T92), annotations point at its
+        // lines (T103), and every line's wrap has to be measured afresh (T28).
         folds = FoldSet()
+        phantoms = PhantomSet()
         lastKnownLineCount = document.lineCount
         rebuildRowMap()
         selection = Selection(caret: .zero)
@@ -531,6 +553,17 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         for row in firstRow ... lastRow {
             let location = rowMap.location(ofRow: row)
             guard location.line < document.lineCount else { break }
+
+            // Phantom rows carry no text of their own — they sit after the line's wrapped
+            // rows and show an annotation instead (T103).
+            if rowMap.isPhantomRow(line: location.line, rowInLine: location.rowInLine) {
+                rows.append(VisibleRow(row: row, line: location.line,
+                                       rowInLine: location.rowInLine,
+                                       columns: 0 ..< 0,
+                                       phantomIndex: location.rowInLine - rowMap.wrapRows(forLine: location.line)))
+                continue
+            }
+
             let text = document.line(location.line)
             let columns: Range<Int>
             if rowMap.isWrapping {
@@ -541,7 +574,8 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
                 columns = 0 ..< text.count
             }
             rows.append(VisibleRow(row: row, line: location.line,
-                                   rowInLine: location.rowInLine, columns: columns))
+                                   rowInLine: location.rowInLine, columns: columns,
+                                   phantomIndex: nil))
         }
         return rows.isEmpty ? nil : VisibleRows(rows: rows)
     }
@@ -746,6 +780,10 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
 
     private func drawText(_ visible: VisibleRows, context: CGContext) {
         for row in visible.rows {
+            if let index = row.phantomIndex {
+                drawPhantom(forRow: row, index: index)
+                continue
+            }
             let entry = cachedLine(row.line)
             if entry.text.isEmpty { continue }
             let baseline = rowTop(row.row) + baselineOffset
@@ -950,8 +988,11 @@ struct VisibleRow {
     let row: Int
     let line: Int
     let rowInLine: Int
-    /// Columns of `line` this row covers. The whole line when wrapping is off.
+    /// Columns of `line` this row covers. The whole line when wrapping is off. Empty for a
+    /// phantom row, which shows an annotation rather than any of the line's text.
     let columns: Range<Int>
+    /// Which of the line's phantoms this row shows, if it is a phantom row (T103).
+    let phantomIndex: Int?
 }
 
 /// The rows on screen for one repaint, in screen order.

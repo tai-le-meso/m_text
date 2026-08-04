@@ -27,6 +27,10 @@ public struct RowMap: Equatable {
     private var rowTotal = 1
 
     public private(set) var folds = FoldSet()
+    /// Extra rows per line for inline annotations (T103). Phantoms *add* rows, exactly as
+    /// folding removes them, so they belong in the same accounting rather than in an
+    /// overlay — the lines below have to move down to make room.
+    private var phantomRowsPerLine: [Int: Int] = [:]
     /// Columns available per row; 0 disables wrapping entirely.
     public private(set) var wrapWidth = 0
 
@@ -76,6 +80,23 @@ public struct RowMap: Equatable {
         rebuildStarts()
     }
 
+    public mutating func setPhantomRows(_ rows: [Int: Int]) {
+        guard rows != phantomRowsPerLine else { return }
+        phantomRowsPerLine = rows
+        rebuildStarts()
+    }
+
+    /// Rows line `line` occupies for its *text*, before phantoms — what wrapping produced.
+    public func wrapRows(forLine line: Int) -> Int {
+        rowsPerLine.indices.contains(line) ? rowsPerLine[line] : 1
+    }
+
+    /// True when `rowInLine` is a phantom row rather than a row of the line's own text.
+    /// Phantom rows come after the line's wrapped rows, so it reads as an annotation below.
+    public func isPhantomRow(line: Int, rowInLine: Int) -> Bool {
+        rowInLine >= wrapRows(forLine: line)
+    }
+
     /// One pass computing every line's screen row, skipping folded blocks.
     private mutating func rebuildStarts() {
         starts = Array(repeating: 0, count: rowsPerLine.count)
@@ -86,7 +107,7 @@ public struct RowMap: Equatable {
             if let region = folds.regions.first(where: { $0.startLine == line }) {
                 // The start line is visible and occupies its rows; everything it hides
                 // collapses onto that same row.
-                row += rowsPerLine[line]
+                row += rowsPerLine[line] + (phantomRowsPerLine[line] ?? 0)
                 let hiddenEnd = min(region.endLine, rowsPerLine.count - 1)
                 if hiddenEnd >= line + 1 {
                     for hidden in (line + 1) ... hiddenEnd { starts[hidden] = starts[line] }
@@ -94,7 +115,7 @@ public struct RowMap: Equatable {
                 line = hiddenEnd + 1
                 continue
             }
-            row += rowsPerLine[line]
+            row += rowsPerLine[line] + (phantomRowsPerLine[line] ?? 0)
             line += 1
         }
         rowTotal = max(1, row)
@@ -110,7 +131,10 @@ public struct RowMap: Equatable {
 
     public func rows(forLine line: Int) -> Int {
         guard rowsPerLine.indices.contains(line) else { return 1 }
-        return folds.isHidden(line: line) ? 0 : rowsPerLine[line]
+        // A hidden line contributes nothing — including its phantoms, which would otherwise
+        // float free of the collapsed text they annotate.
+        guard !folds.isHidden(line: line) else { return 0 }
+        return rowsPerLine[line] + (phantomRowsPerLine[line] ?? 0)
     }
 
     /// Total rows on screen, with folds removed and wraps counted.

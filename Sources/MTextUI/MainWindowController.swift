@@ -33,6 +33,23 @@ public final class MainWindowController: NSWindowController {
     /// Diagnostics the last build produced, for the `MTEXT_SMOKE_TEST` hook (T95). Same
     /// reason as above: the hook lives in the executable target and can't see `BuildPanel`,
     /// which stays internal.
+    /// Focused editor's canvas height, for `MTEXT_SMOKE_TEST`. Exposed for the same reason
+    /// as `smokeTestEditorText`: a pane holds one `EditorView` per tab, so measuring "the
+    /// first editor in this pane" from the view tree can silently be a *different* editor
+    /// from the one the other hooks are driving.
+    public var smokeTestEditorHeight: CGFloat {
+        editor.layoutSubtreeIfNeeded()
+        return editor.frame.height
+    }
+    public func smokeTestSetWordWrap(_ enabled: Bool) { editor.wordWrapEnabled = enabled }
+
+    /// Inline-annotation hooks for `MTEXT_SMOKE_TEST` (T103).
+    public func smokeTestSetPhantom(line: Int, text: String) {
+        editor.setPhantoms([Phantom(line: line, text: text, kind: .error, owner: "smoke")],
+                           owner: "smoke")
+    }
+    public func smokeTestClearPhantoms() { editor.clearPhantoms(nil) }
+
     /// Spell-check state on the focused editor, for the `MTEXT_SMOKE_TEST` hook (T101).
     /// The unit tests cover scope filtering; only a live app exercises `NSSpellChecker`.
     public var smokeTestSpellCheckEnabled: Bool {
@@ -529,6 +546,7 @@ public final class MainWindowController: NSWindowController {
         buildRunner.onOutput = { [weak self] text in self?.buildPanel.append(text) }
         buildRunner.onFinish = { [weak self] status in
             self?.buildPanel.finishBuild(status: status)
+            self?.showBuildDiagnosticsInline()
         }
         guard let command = buildRunner.run(system, variables: variables) else {
             statusLabel.stringValue = "Build system \(system.name) has nothing to run"
@@ -545,6 +563,34 @@ public final class MainWindowController: NSWindowController {
 
     @objc public func previousBuildError(_ sender: Any?) {
         if !buildPanel.goToDiagnostic(offset: -1) { NSSound.beep() }
+    }
+
+    /// Owner string for build-produced annotations, so a rebuild replaces its own and
+    /// leaves anything else alone (T103).
+    private static let buildPhantomOwner = "build"
+
+    /// Shows the build's diagnostics inline, under the lines they refer to.
+    ///
+    /// This is what makes T103 more than a framework: an error in the output panel is far
+    /// more useful sitting under the line that caused it.
+    private func showBuildDiagnosticsInline() {
+        let diagnostics = buildPanel.diagnostics
+        for tab in allTabs {
+            guard let path = tab.editor.document.fileURL?.path else {
+                tab.editor.setPhantoms([], owner: Self.buildPhantomOwner)
+                continue
+            }
+            let forFile = diagnostics.filter { $0.file == path }
+            tab.editor.setPhantoms(forFile.map {
+                Phantom(line: $0.line,
+                        text: $0.message,
+                        // Compilers conventionally spell it in the message itself; anything
+                        // that isn't clearly a warning is treated as an error, which errs
+                        // toward the more visible of the two.
+                        kind: $0.message.localizedCaseInsensitiveContains("warning") ? .warning : .error,
+                        owner: Self.buildPhantomOwner)
+            }, owner: Self.buildPhantomOwner)
+        }
     }
 
     private func jump(to diagnostic: BuildDiagnostic) {
