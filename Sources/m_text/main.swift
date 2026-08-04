@@ -146,9 +146,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "unfolding restores it exactly (\(editor.frame.height) vs \(unfoldedHeight))")
             }
 
+            /// T28: wrapping changes the row count, the canvas height, and — because the
+            /// canvas becomes the viewport — its width too. All three have broken before in
+            /// this file's geometry, so all three are asserted.
+            func wrapCheck() {
+                let panes = paneViews()
+                guard let editor = panes.first.flatMap({ descendants(of: $0, named: "EditorView").first })
+                        as? EditorView else {
+                    check(false, "found an editor to wrap in")
+                    return
+                }
+                editor.wordWrapEnabled = false
+                editor.text = String(repeating: String(repeating: "word ", count: 60) + "\n", count: 40)
+                editor.layoutSubtreeIfNeeded()
+                let unwrappedHeight = editor.frame.height
+                let unwrappedWidth = editor.frame.width
+
+                editor.wordWrapEnabled = true
+                editor.layoutSubtreeIfNeeded()
+                check(editor.frame.height > unwrappedHeight,
+                      "wrapping makes the canvas taller (\(unwrappedHeight) -> \(editor.frame.height))")
+                check(editor.frame.width < unwrappedWidth,
+                      "and no wider than the viewport (\(unwrappedWidth) -> \(editor.frame.width))")
+
+                editor.wordWrapEnabled = false
+                editor.layoutSubtreeIfNeeded()
+                check(editor.frame.height == unwrappedHeight && editor.frame.width == unwrappedWidth,
+                      "turning it off restores both exactly")
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
+                { wrapCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")

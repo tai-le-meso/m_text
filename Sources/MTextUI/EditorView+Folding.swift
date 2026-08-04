@@ -109,7 +109,7 @@ extension EditorView {
     /// Handles a click in the gutter's fold column. Returns true when it toggled something,
     /// so the mouse handler knows not to also move the caret.
     func handleFoldClick(at point: NSPoint) -> Bool {
-        guard showsGutter, let visible = visibleLines(in: visibleRect) else { return false }
+        guard showsGutter, let visible = visibleRows(in: visibleRect) else { return false }
         for line in visible.lines where foldTriangleRect(forLine: line).insetBy(dx: -3, dy: -3).contains(point) {
             guard let region = foldRegion(at: line) else { continue }
             var updated = folds
@@ -185,5 +185,66 @@ extension EditorView {
             folds = updated
         }
         revealCaretIfFolded()
+    }
+}
+
+// MARK: - Word wrap (T28)
+
+extension EditorView {
+
+    /// Columns available for text on one row, or 0 when wrapping is off.
+    ///
+    /// Derived from the viewport rather than the canvas: the canvas *is* the viewport while
+    /// wrapping (see `updateFrameSize`), so measuring the canvas would make the two chase
+    /// each other. The gutter and padding come off the top because they are not text.
+    var currentWrapWidth: Int {
+        guard wordWrapEnabled else { return 0 }
+        if wrapColumn > 0 { return wrapColumn }
+        let viewport = enclosingScrollView?.contentSize.width ?? bounds.width
+        let usable = viewport - textOriginX - textPadding * 2
+        guard charWidth > 0, usable > charWidth else { return 0 }
+        return max(1, Int(usable / charWidth))
+    }
+
+    /// Rebuilds the whole row index. Called when wrapping is switched on or off, the wrap
+    /// width changes, the font changes, or the document is replaced.
+    func rebuildRowMap() {
+        let width = currentWrapWidth
+        lastBuiltWrapWidth = width
+        rowMap.rebuild(lineProvider: { [document] in document.line($0) },
+                       lineCount: document.lineCount,
+                       wrapWidth: width,
+                       tabSize: foldTabSize)
+        rowMap.setFolds(folds)
+        lastKnownLineCount = document.lineCount
+        updateFrameSize()
+        needsDisplay = true
+    }
+
+    /// Re-wraps only what an edit touched. `didEdit` knows the first changed line; the rest
+    /// of the document keeps its cached row counts, which is what keeps typing in a large
+    /// wrapped file off the critical path.
+    func rowMapDidEdit(fromLine: Int) {
+        guard rowMap.isWrapping else {
+            rowMap.updateLines(0 ..< 0, lineProvider: { [document] in document.line($0) },
+                               newLineCount: document.lineCount, tabSize: foldTabSize)
+            rowMap.setFolds(folds)
+            return
+        }
+        // An edit can add or remove lines, so everything from the first changed line to the
+        // end may have shifted; re-wrapping just that suffix is still far cheaper than the
+        // whole document for an edit near the bottom, and correct for one near the top.
+        let upper = document.lineCount
+        rowMap.updateLines(max(0, fromLine) ..< upper,
+                           lineProvider: { [document] in document.line($0) },
+                           newLineCount: document.lineCount, tabSize: foldTabSize)
+        rowMap.setFolds(folds)
+    }
+
+    /// Re-wraps after a viewport resize, but only when the *column count* actually changed —
+    /// most resize events move the width by a few points and leave it identical.
+    func wrapWidthDidChange() {
+        guard wordWrapEnabled, currentWrapWidth != lastBuiltWrapWidth else { return }
+        rebuildRowMap()
     }
 }

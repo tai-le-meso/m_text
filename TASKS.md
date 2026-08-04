@@ -42,7 +42,7 @@ Granular engineering tasks per phase. `→ Tn` = depends on task n. Sizes: S (<1
 | T25 | Smart indent: keep indent, indent after `{`, closer on its own line | M | ✅ |
 | T26 | Line ops: move/duplicate/join/delete/sort/unique/reverse; case transforms | M | ✅ (transpose TODO) |
 | T27 | Comment toggle (line) | S | ✅ (token by extension; block comments + syntax metadata in Phase 3) |
-| T28 | Word wrap layout (wrap at view width/ruler), wrapped-line cursor movement | L | deferred — interacts with folding (T92) |
+| T28 | Word wrap layout (wrap at view width/ruler), wrapped-line cursor movement | L | ✅ (landed after T92, which built the row mapping it needed) |
 | T29 | Gutter: line numbers, caret-line emphasis, current-line highlight | M | ✅ (fold arrows with T92) |
 | T30 | Render extras: whitespace glyphs, rulers | S | ✅ (indent guides TODO) |
 | T31 | LayoutCache: CTLine cache invalidated by document generation | M | ✅ |
@@ -604,6 +604,57 @@ O(n·depth) — fine interactively, but it is the obvious thing to memoise if it
 No fold-by-syntax-scope (`region.foldable` in `.sublime-syntax` is unread), no persistent
 fold markers in the minimap (T93 doesn't exist yet), and folding is per-view rather than
 shared between two panes showing the same file. 21 tests in `FoldingTests`.
+
+**T28 detail (delivered):** deferred through Phase 2 because it needs the same
+document-line ↔ screen-row split as folding; T92 built that, so this extends it rather than
+adding a parallel one. Three pieces.
+
+`WordWrapper` (`Sources/MTextCore/WordWrap.swift`) is the greedy, word-aware breaking
+algorithm, measured in **character columns** rather than points. The editor already assumes a
+monospaced font wherever it estimates width (`updateFrameSize` sizes the canvas as
+`charWidth × longestLineLength`), so a column model is consistent with the rest of the layout
+and — unlike a CoreText-measured one — is pure, fast and testable without a view. A
+proportional `font_face` therefore wraps approximately: a documented consequence of an
+assumption the canvas already made, not a new one. Two behaviours the tests caught in the
+first implementation: a space that overflows now **hangs** past the edge instead of forcing a
+break (without it `"aaa bbb ccc"` at width 7 broke after `"aaa "`, four columns short of a
+fit, because the separating space tripped the overflow test before `"bbb"` was considered),
+and a break landing exactly at the line's end is suppressed rather than adding an empty
+trailing row. Tabs deliberately do not hang — a tab is real indentation.
+
+`RowMap` (`Sources/MTextCore/RowMap.swift`) unifies folds and wrap. Folding *removes* rows and
+wrapping *adds* them; with only folds the mapping was closed-form arithmetic, but once one
+line can occupy several rows it needs a cumulative index. `starts` is precomputed **with folds
+already applied**, so `firstRow` is O(1) and `location(ofRow:)` can binary-search it — the
+first version derived each probe by summing hidden lines above it, making hit testing
+O(hidden lines · log n), invisible in tests but pathological with one large region collapsed.
+Rebuild cost drove the design and is measured rather than assumed (`PerformanceTests`): a full
+rebuild only happens when wrap width, tab size or font changes, while an edit patches just the
+lines it touched through `updateLines`.
+
+The view routes everything through it. `VisibleLines` from T92 became `VisibleRows`, since
+visible lines are non-contiguous (folding) *and* one line can span rows (wrapping). Drawing
+reuses the cached per-line `CTLine`, shifted so the row's first column lands at the text
+origin and clipped to the row, rather than shaping a `CTLine` per wrapped row — `LayoutCache`
+is untouched and the same text isn't re-shaped once per row it occupies. Selections, search
+matches and the current-line highlight are clipped to each row's column slice; the gutter
+draws one number per line at its first row. Caret placement, hit testing and up/down movement
+resolve through the wrapped row, so moving down a wrapped line steps through its rows. While
+wrapping, the canvas width collapses to the viewport: there is nothing to scroll horizontally,
+and it stops the wrap width and the canvas width chasing each other on every resize.
+
+Settings `word_wrap` and `wrap_width` (0 = window width); **View ▸ Word Wrap** (⌥⌘W) writes a
+*view* override so a settings reload can't silently undo it. Re-wraps on font change, document
+replace, per-edit, and on viewport resize — the last guarded so a resize that leaves the column
+count unchanged (most of them) doesn't rebuild the index.
+
+Known gaps: continuation rows are **not** indented to match their line's leading whitespace
+(Sublime's `indent_subsequent_lines`) — it needs the wrap width to shrink per row, which
+changes the breaking arithmetic rather than just the drawing. Wrapping is per-view, not shared
+between panes showing the same file, and is not persisted in the session. Home/End still move
+to the line's edges rather than the row's. Proportional fonts wrap approximately, as above.
+26 tests across `WordWrapTests` and `RowMapTests`, plus a perf case and three smoke-test
+assertions.
 
 ## Phase 8 — Extensibility & polish
 

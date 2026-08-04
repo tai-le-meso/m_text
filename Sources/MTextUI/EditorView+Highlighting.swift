@@ -204,7 +204,7 @@ extension EditorView {
         matchedBrackets = matcher.match(at: selection.primary.head)
     }
 
-    func drawBracketMatch(_ visible: VisibleLines) {
+    func drawBracketMatch(_ visible: VisibleRows) {
         guard let match = matchedBrackets else { return }
         let color = match.isUnbalanced
             ? NSColor.systemRed.withAlphaComponent(0.35)

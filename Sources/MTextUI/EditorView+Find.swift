@@ -167,7 +167,7 @@ extension EditorView {
 
     /// All matches get a soft highlight; the selected one gets a stronger fill and an
     /// outline, so it stands out even where the selection highlight already sits.
-    func drawSearchMatches(_ visible: VisibleLines) {
+    func drawSearchMatches(_ visible: VisibleRows) {
         let matches = searchSession.matches
         guard !matches.isEmpty else { return }
 
@@ -182,14 +182,18 @@ extension EditorView {
             let isCurrent = region == current
             (isCurrent ? strong : soft).setFill()
 
-            // Only rows on screen — a match inside a collapsed fold must not be painted
-            // over the fold's start line (T92).
-            for line in visible.lines where line >= region.start.line && line <= region.end.line {
-                let fromColumn = line == region.start.line ? region.start.column : 0
-                let toColumn = line == region.end.line
+            // Per row, clipped to each wrapped row's column slice — and never over a
+            // collapsed region (T92, T28).
+            for row in visible.rows where row.line >= region.start.line && row.line <= region.end.line {
+                let lineFrom = row.line == region.start.line ? region.start.column : 0
+                let lineTo = row.line == region.end.line
                     ? region.end.column
-                    : document.lineLength(line)
-                let x0 = xOffset(ofColumn: fromColumn, line: line)
+                    : document.lineLength(row.line)
+                let fromColumn = max(lineFrom, row.columns.lowerBound)
+                let toColumn = min(lineTo, row.columns.upperBound)
+                guard fromColumn <= toColumn else { continue }
+                let line = row.line
+                let x0 = x(forColumn: fromColumn, in: row)
                 let x1 = xOffset(ofColumn: toColumn, line: line)
                 let rect = NSRect(x: x0, y: lineTop(line), width: max(2, x1 - x0), height: lineHeight)
                 rect.fill()

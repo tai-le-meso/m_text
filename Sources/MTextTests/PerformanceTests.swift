@@ -16,6 +16,7 @@ enum PerformanceTests {
         ("tree height stays logarithmic", testTreeHeightStaysLogarithmic),
         ("fuzzy ranking 100k entries per keystroke is fast", testFuzzyRanking100kEntriesIsFast),
         ("autocomplete on a large buffer stays within a keystroke", testCompletionOnLargeBufferIsFast),
+        ("word-wrap row map rebuilds and patches fast enough", testRowMapIsFast),
     ])
 
     private static func makeLargeText(lines: Int) -> String {
@@ -130,5 +131,41 @@ enum PerformanceTests {
         let rankElapsed = Date().timeIntervalSince(rankStart)
         expectFalse(items.isEmpty)
         expectLessThan(rankElapsed, 0.1, String(format: "ranking one keystroke took %.3fs", rankElapsed))
+    }
+
+    /// T28's design constraint, measured rather than assumed. A full rebuild happens on
+    /// every window resize and font change; `updateLines` runs per edit, so it is the one
+    /// that must stay off the keystroke critical path.
+    static func testRowMapIsFast() {
+        let lineCount = 200_000
+        let lines = (0 ..< lineCount).map { "func example\($0)() { return \($0) * 2 } // filler text here" }
+        var map = RowMap()
+
+        let rebuildStart = Date()
+        map.rebuild(lineProvider: { lines[$0] }, lineCount: lineCount, wrapWidth: 40, tabSize: 4)
+        let rebuildElapsed = Date().timeIntervalSince(rebuildStart)
+        expectTrue(map.totalRows > lineCount, "wrapping at 40 columns must add rows")
+        expectLessThan(rebuildElapsed, 3.0,
+                       String(format: "rebuilding 200k wrapped lines took %.3fs", rebuildElapsed))
+
+        // One edit: re-wrap a single line and re-index. This is what a keystroke costs.
+        let editStart = Date()
+        for _ in 0 ..< 50 {
+            map.updateLines(1000 ..< 1001, lineProvider: { lines[$0] },
+                            newLineCount: lineCount, tabSize: 4)
+        }
+        let editElapsed = Date().timeIntervalSince(editStart) / 50
+        expectLessThan(editElapsed, 0.02,
+                       String(format: "one edit re-index took %.4fs", editElapsed))
+
+        // Hit testing is binary search, so a row at the end must cost the same as one at
+        // the start — a linear scan here would be invisible until a big file arrived.
+        let lookupStart = Date()
+        for row in stride(from: 0, to: map.totalRows, by: max(1, map.totalRows / 5000)) {
+            _ = map.location(ofRow: row)
+        }
+        let lookupElapsed = Date().timeIntervalSince(lookupStart)
+        expectLessThan(lookupElapsed, 0.5,
+                       String(format: "5000 row lookups took %.3fs", lookupElapsed))
     }
 }

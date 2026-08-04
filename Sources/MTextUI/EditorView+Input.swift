@@ -168,13 +168,39 @@ extension EditorView {
     /// Up/down move by **visual row**, so a collapsed region counts as one step rather
     /// than as however many lines it hides (T92). With nothing folded this is exactly the
     /// old line arithmetic, since row == line.
+    /// Position `delta` visual rows from `origin`, keeping `goalColumn` as the target
+    /// column *within the destination row* — so moving down a wrapped line steps through its
+    /// rows rather than jumping over the whole line (T28).
+    func position(movedBy delta: Int, from origin: Position, goalColumn: Int) -> Position {
+        let currentRow = rowMap.row(at: origin,
+                                    lineProvider: { [document] in document.line($0) },
+                                    tabSize: foldTabSize)
+        let targetRow = max(0, min(rowMap.totalRows - 1, currentRow + delta))
+        let location = rowMap.location(ofRow: targetRow)
+        guard rowMap.isWrapping else {
+            return document.clamp(Position(line: location.line, column: goalColumn))
+        }
+        let text = document.line(location.line)
+        let breaks = wrapBreaks(forLine: location.line, text: text)
+        let columns = WordWrapper.columnRange(ofRow: location.rowInLine, breaks: breaks,
+                                              lineLength: text.count)
+        // The goal column is measured from the *line's* start, so offset it into the
+        // destination row and clamp to that row's span.
+        let originBreaks = wrapBreaks(forLine: origin.line)
+        let originRowStart = WordWrapper.columnRange(
+            ofRow: WordWrapper.row(forColumn: origin.column, breaks: originBreaks),
+            breaks: originBreaks,
+            lineLength: document.lineLength(origin.line)).lowerBound
+        let withinRow = max(0, goalColumn - originRowStart)
+        let column = min(columns.lowerBound + withinRow, columns.upperBound)
+        return document.clamp(Position(line: location.line, column: column))
+    }
+
     func moveVertically(by delta: Int, extend: Bool) {
         var updated = selection
         updated.map { region in
             let goal = region.goalColumn ?? region.head.column
-            let row = folds.visualRow(forLine: region.head.line) + delta
-            let line = folds.line(forVisualRow: max(0, row))
-            let head = document.clamp(Position(line: line, column: goal))
+            let head = position(movedBy: delta, from: region.head, goalColumn: goal)
             return Region(anchor: extend ? region.anchor : head, head: head, goalColumn: goal)
         }
         didMoveSelection(updated)

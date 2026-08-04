@@ -142,6 +142,11 @@ public struct EditorSettings: Equatable {
     /// ⌃Space working, matching Sublime: disabling the automatic popup is a different
     /// preference from not wanting completion at all.
     public var autoComplete: Bool
+    /// T28 — wrap long lines instead of scrolling horizontally.
+    public var wordWrap: Bool
+    /// Columns to wrap at. 0 means "the window width", which is the common case; a fixed
+    /// number is for people who wrap to a ruler.
+    public var wrapWidth: Int
 
     /// What one press of Tab inserts (and what indent/outdent shift by). Tabs mode always
     /// inserts a single `\t` regardless of `tab_size` — the width of a tab is a rendering
@@ -172,6 +177,8 @@ public enum SettingsResolver {
         "highlight_line": .bool(true),
         "rulers": .intArray([]),
         "auto_complete": .bool(true),
+        "word_wrap": .bool(false),
+        "wrap_width": .int(0),
     ]
 
     public static var defaultLayer: SettingsLayer {
@@ -228,6 +235,12 @@ public enum SettingsResolver {
         // still opens it on demand.
         "auto_complete": true,
 
+        // Wrap long lines instead of scrolling sideways.
+        "word_wrap": false,
+
+        // Column to wrap at. 0 wraps to the window width; set a number to wrap to a ruler.
+        "wrap_width": 0,
+
         // Colour scheme by name, e.g. "Monokai". Omitted by default, which keeps
         // whichever scheme the app loaded at launch.
         // "color_scheme": "Monokai",
@@ -257,7 +270,9 @@ public enum SettingsResolver {
             highlightLine: value("highlight_line")?.boolValue ?? true,
             rulers: value("rulers")?.intArrayValue ?? [],
             colorScheme: value("color_scheme")?.stringValue,
-            autoComplete: value("auto_complete")?.boolValue ?? true
+            autoComplete: value("auto_complete")?.boolValue ?? true,
+            wordWrap: value("word_wrap")?.boolValue ?? false,
+            wrapWidth: max(0, value("wrap_width")?.intValue ?? 0)
         )
     }
 

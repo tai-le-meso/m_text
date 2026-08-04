@@ -222,6 +222,8 @@ private func viewMenu() -> NSMenu {
     menu.addItem(.separator())
     menu.addItem(withTitle: "Show Line Numbers", action: #selector(EditorView.toggleGutter(_:)), keyEquivalent: "")
     menu.addItem(withTitle: "Show Invisibles", action: #selector(EditorView.toggleInvisibles(_:)), keyEquivalent: "")
+    // T28. ⌥⌘W is Sublime's binding for Word Wrap.
+    menu.addItem(item("Word Wrap", #selector(EditorView.toggleWordWrap(_:)), "w", [.command, .option]))
     menu.addItem(.separator())
     menu.addItem(withTitle: "Increase Font Size",
                  action: #selector(EditorView.increaseFontSize(_:)), keyEquivalent: "+")
