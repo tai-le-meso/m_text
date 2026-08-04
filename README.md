@@ -238,6 +238,14 @@ recorded run of keystrokes is one step rather than one per character. **Edit ▸
 Macro…** writes a `.sublime-macro` file you can keep, hand-edit or share; Open Macro… loads
 one back. Replay currently undoes step by step rather than as a single action.
 
+**Build systems** — drop a `.sublime-build` into
+`~/Library/Application Support/m_text/Build` and press **⌘B**; **⇧⌘B** picks between systems
+and their variants. Output appears in a panel at the bottom with the exact command that ran
+echoed at the top, and `file_regex` turns compiler errors into **F4** / **⇧F4** navigation
+straight to the file, line and column. `cmd` runs without a shell; `shell_cmd` goes through
+`/bin/sh` when you want pipes. **Builds only ever run when you ask** — opening a file or a
+project never starts one.
+
 ## Layout
 
 ```
@@ -256,6 +264,7 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   WordWrap.swift       greedy word-aware line breaking, in character columns
   RowMap.swift         folds + wrap unified: document line <-> screen row
   Macro.swift          .sublime-macro model, parser, recorder
+  BuildSystem.swift    .sublime-build parsing, $variables, file_regex (no execution)
 Sources/MTextUI/
   Minimap.swift        overview strip drawn from highlight spans over RowMap rows
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller

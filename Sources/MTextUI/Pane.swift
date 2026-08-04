@@ -69,8 +69,14 @@ final class Pane {
     let findBarHost = NSView()
     private(set) var findBarHeight: NSLayoutConstraint!
 
-    /// `tabBar` + `findBarHost` + `editorContainer`, laid out vertically — what a split
-    /// adds to the window's pane split view as one arranged subview.
+    /// Hosts the build output panel (T95), below the editor. Collapsed to zero height when
+    /// no build has run — same arrangement as `findBarHost`, and for the same reason: only a
+    /// constraint changes, and the panel keeps its output for next time.
+    let buildPanelHost = NSView()
+    private(set) var buildPanelHeight: NSLayoutConstraint!
+
+    /// `tabBar` + `findBarHost` + `editorContainer` + `buildPanelHost`, laid out vertically —
+    /// what a split adds to the window's pane split view as one arranged subview.
     let view = NSView()
 
     var editor: EditorView { activeTab.editor }
@@ -90,11 +96,14 @@ final class Pane {
 
         editorContainer.translatesAutoresizingMaskIntoConstraints = false
         findBarHost.translatesAutoresizingMaskIntoConstraints = false
+        buildPanelHost.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(tabBarScroll)
         view.addSubview(findBarHost)
         view.addSubview(editorContainer)
+        view.addSubview(buildPanelHost)
         findBarHeight = findBarHost.heightAnchor.constraint(equalToConstant: 0)
+        buildPanelHeight = buildPanelHost.heightAnchor.constraint(equalToConstant: 0)
         NSLayoutConstraint.activate([
             tabBarScroll.topAnchor.constraint(equalTo: view.topAnchor),
             tabBarScroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -109,7 +118,12 @@ final class Pane {
             editorContainer.topAnchor.constraint(equalTo: findBarHost.bottomAnchor),
             editorContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             editorContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            editorContainer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            editorContainer.bottomAnchor.constraint(equalTo: buildPanelHost.topAnchor),
+
+            buildPanelHost.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            buildPanelHost.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            buildPanelHost.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            buildPanelHeight,
         ])
     }
 

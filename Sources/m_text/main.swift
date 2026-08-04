@@ -241,12 +241,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "replay did not re-record itself (\(EditorView.lastMacro?.steps.count ?? -1) steps)")
             }
 
+            /// T95: actually run a build. Only a live app can show that Process launches,
+            /// output streams back, the panel appears and file_regex finds the error —
+            /// the unit tests cover parsing and regex matching, not execution.
+            /// Installs its own `.sublime-build` so the check is hermetic — it must not
+            /// depend on whatever the machine happens to have configured, and it removes the
+            /// fixture again in `buildResultCheck`.
+            func installBuildFixture() -> URL? {
+                guard let directory = BuildSystemStore.defaultDirectories.last else { return nil }
+                try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let url = directory.appendingPathComponent("ZZSmokeTest.sublime-build")
+                let json = """
+                {
+                    "shell_cmd": "echo 'src/demo.txt:3:5: error: smoke test diagnostic'; exit 1",
+                    "file_regex": "^(.+):([0-9]+):([0-9]+): (.+)$"
+                }
+                """
+                try? Data(json.utf8).write(to: url)
+                return url
+            }
+            var buildFixture: URL?
+
+            func buildCheck() {
+                buildFixture = installBuildFixture()
+                check(buildFixture != nil, "installed a build fixture")
+                controller.build(nil)
+                let panels = descendants(of: window.contentView!, named: "BuildPanel")
+                check(panels.count == 1, "build panel appeared (got \(panels.count))")
+                check((panels.first?.frame.height ?? 0) > 50,
+                      "and has real height (\(panels.first?.frame.height ?? 0))")
+            }
+
+            /// Checked a step later, so the process has exited and its output been parsed.
+            func buildResultCheck() {
+                let found = controller.smokeTestBuildDiagnostics
+                check(found.count == 1, "file_regex found the error (got \(found.count))")
+                check(found.first?.line == 2,
+                      "line 3 in output is line 2 internally (got \(found.first?.line ?? -1))")
+                check(found.first?.column == 4, "and column 5 is column 4")
+                if let buildFixture { try? FileManager.default.removeItem(at: buildFixture) }
+            }
+
             run([
                 { controller.splitViewRight(nil) },
                 { foldingCheck() },
                 { wrapCheck() },
                 { minimapCheck() },
                 { macroCheck() },
+                { buildCheck() },
+                { buildResultCheck() },
                 {
                     let panes = paneViews()
                     check(panes.count == 2, "split produced two panes (got \(panes.count))")

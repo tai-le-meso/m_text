@@ -30,6 +30,13 @@ public final class MainWindowController: NSWindowController {
     /// than loosening `focusedPaneIndex` itself, so nothing outside can *set* it.
     public var smokeTestFocusedPaneIndex: Int { focusedPaneIndex }
 
+    /// Diagnostics the last build produced, for the `MTEXT_SMOKE_TEST` hook (T95). Same
+    /// reason as above: the hook lives in the executable target and can't see `BuildPanel`,
+    /// which stays internal.
+    public var smokeTestBuildDiagnostics: [(file: String, line: Int, column: Int)] {
+        buildPanel.diagnostics.map { ($0.file, $0.line, $0.column) }
+    }
+
     private let sidebar = Sidebar()
     private let sidebarSplitView = NSSplitView()
     private let paneSplitView = NSSplitView()
@@ -178,6 +185,167 @@ public final class MainWindowController: NSWindowController {
         // every resolved setting (this is what makes per-language `tab_size` work).
         applySettings(to: activeTab)
         refreshChrome()
+    }
+
+    // MARK: - Build systems (T95)
+
+    private let buildRunner = BuildRunner()
+    private lazy var buildPanel: BuildPanel = {
+        let panel = BuildPanel(frame: .zero)
+        panel.translatesAutoresizingMaskIntoConstraints = false
+        panel.onCancel = { [weak self] in self?.cancelBuild(nil) }
+        panel.onJump = { [weak self] diagnostic in self?.jump(to: diagnostic) }
+        return panel
+    }()
+    private var buildPanelPane: Pane?
+    /// The build system last run, so ⌘B repeats it rather than re-asking.
+    private var lastBuildSystem: BuildSystem?
+
+    /// Variables for the active tab, resolved at run time rather than at parse time so the
+    /// same build system works from whichever file is in front.
+    private func buildVariables() -> BuildVariables {
+        BuildVariables(filePath: textDocument.fileURL?.path ?? "",
+                       projectPath: currentProject?.fileURL?.path ?? "",
+                       folder: currentProject?.folders.first?.url.path
+                           ?? textDocument.fileURL?.deletingLastPathComponent().path ?? "",
+                       packages: BuildSystemStore.defaultDirectories.first?.path ?? "")
+    }
+
+    /// ⌘B — run the last build system, or pick one when there is no obvious choice.
+    ///
+    /// **Only ever reached from this command.** Nothing about opening a file, restoring a
+    /// session or changing syntax runs a build; see `BuildRunner`'s note.
+    @objc public func build(_ sender: Any?) {
+        if let system = lastBuildSystem {
+            start(system)
+            return
+        }
+        let candidates = BuildSystemStore.matching(
+            scope: editor.syntaxScope,
+            in: BuildSystemStore.available(directories: BuildSystemStore.defaultDirectories))
+        guard !candidates.isEmpty else {
+            statusLabel.stringValue = "No build system — add a .sublime-build to ~/Library/Application Support/m_text/Build"
+            NSSound.beep()
+            return
+        }
+        // One obvious candidate and no variants: just run it. Otherwise ask, rather than
+        // guessing which of several commands the user meant.
+        if candidates.count == 1, candidates[0].variants.isEmpty {
+            start(candidates[0])
+        } else {
+            chooseBuildSystem(sender)
+        }
+    }
+
+    /// **Build With…** — a palette over every applicable build system and variant.
+    @objc public func chooseBuildSystem(_ sender: Any?) {
+        guard let window else { return }
+        let systems = BuildSystemStore.matching(
+            scope: editor.syntaxScope,
+            in: BuildSystemStore.available(directories: BuildSystemStore.defaultDirectories))
+        // Variants are offered alongside their parent — that is how a "Run" or "Test" is
+        // reached, and Sublime lists them the same way.
+        var choices: [BuildSystem] = []
+        for system in systems {
+            if system.isRunnable { choices.append(system) }
+            choices.append(contentsOf: system.variants)
+        }
+        guard !choices.isEmpty else {
+            statusLabel.stringValue = "No build system applies to this file"
+            NSSound.beep()
+            return
+        }
+
+        overlayPalette.onQueryChanged = { [weak self] query in
+            let names = choices.map(\.name)
+            let ranked: [(index: Int, match: FuzzyMatcher.Match)] = query.isEmpty
+                ? names.indices.map { ($0, FuzzyMatcher.Match(score: 0, indices: [])) }
+                : FuzzyMatcher.rank(query: query, candidates: names)
+            self?.overlayPalette.setItems(ranked.map { entry in
+                let system = choices[entry.index]
+                let command = system.cmd.isEmpty ? (system.shellCmd ?? "") : system.cmd.joined(separator: " ")
+                return PaletteItem(title: system.name, subtitle: command,
+                                   matchedIndices: entry.match.indices, payload: entry.index)
+            })
+        }
+        overlayPalette.onHighlightChanged = { _ in }
+        overlayPalette.onCommit = { [weak self] item in
+            guard let self, let index = item.payload as? Int, choices.indices.contains(index) else { return }
+            self.start(choices[index])
+        }
+        overlayPalette.onCancel = {}
+        overlayPalette.show(over: window, placeholder: "Build With…")
+        overlayPalette.onQueryChanged?("")
+    }
+
+    @objc public func cancelBuild(_ sender: Any?) {
+        buildRunner.cancel()
+        buildPanel.finishBuild(status: nil)
+    }
+
+    private func start(_ system: BuildSystem) {
+        lastBuildSystem = system
+        showBuildPanel()
+        let variables = buildVariables()
+        let workingDirectory = system.workingDir.map { variables.expand($0) } ?? variables.folder
+
+        buildRunner.onOutput = { [weak self] text in self?.buildPanel.append(text) }
+        buildRunner.onFinish = { [weak self] status in
+            self?.buildPanel.finishBuild(status: status)
+        }
+        guard let command = buildRunner.run(system, variables: variables) else {
+            statusLabel.stringValue = "Build system \(system.name) has nothing to run"
+            return
+        }
+        buildPanel.beginBuild(command: command, fileRegex: system.fileRegex,
+                              workingDirectory: workingDirectory)
+    }
+
+    /// F4 / ⇧F4 — step through the errors the last build reported.
+    @objc public func nextBuildError(_ sender: Any?) {
+        if !buildPanel.goToDiagnostic(offset: 1) { NSSound.beep() }
+    }
+
+    @objc public func previousBuildError(_ sender: Any?) {
+        if !buildPanel.goToDiagnostic(offset: -1) { NSSound.beep() }
+    }
+
+    private func jump(to diagnostic: BuildDiagnostic) {
+        guard FileManager.default.fileExists(atPath: diagnostic.file) else {
+            statusLabel.stringValue = "Cannot find \(diagnostic.file)"
+            return
+        }
+        openAndJump(to: URL(fileURLWithPath: diagnostic.file),
+                    line: diagnostic.line, column: diagnostic.column)
+        statusLabel.stringValue = diagnostic.message
+    }
+
+    /// Mounts the panel in the focused pane, the same way the find bar is mounted.
+    private func showBuildPanel() {
+        let pane = focusedPane
+        if buildPanelPane !== pane {
+            buildPanelPane?.buildPanelHeight.constant = 0
+            buildPanel.removeFromSuperview()
+            pane.buildPanelHost.addSubview(buildPanel)
+            NSLayoutConstraint.activate([
+                buildPanel.topAnchor.constraint(equalTo: pane.buildPanelHost.topAnchor),
+                buildPanel.leadingAnchor.constraint(equalTo: pane.buildPanelHost.leadingAnchor),
+                buildPanel.trailingAnchor.constraint(equalTo: pane.buildPanelHost.trailingAnchor),
+                buildPanel.bottomAnchor.constraint(equalTo: pane.buildPanelHost.bottomAnchor),
+            ])
+            buildPanelPane = pane
+        }
+        pane.buildPanelHeight.constant = BuildPanel.preferredHeight
+        window?.contentView?.layoutSubtreeIfNeeded()
+        editor.wrapWidthDidChange()
+    }
+
+    /// Hides the panel without discarding what it holds.
+    @objc public func toggleBuildPanel(_ sender: Any?) {
+        guard let pane = buildPanelPane else { return }
+        pane.buildPanelHeight.constant = pane.buildPanelHeight.constant > 0 ? 0 : BuildPanel.preferredHeight
+        window?.contentView?.layoutSubtreeIfNeeded()
+        editor.wrapWidthDidChange()
     }
 
     // MARK: - Macros (T94)
