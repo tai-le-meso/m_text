@@ -123,8 +123,7 @@ is entirely offline: it copies from a path you choose and never fetches.
 all matches highlighted, ⌘G/⇧⌘G cycling, Replace and Replace All with `$1`/`\1` capture
 references, and Find All to put a cursor on every match.
 
-Known gaps, tracked in TASKS.md: no word wrap yet (T28 — now unblocked, since folding
-built the line↔row mapping it needs),
+Known gaps, tracked in TASKS.md:
 no find-in-files (T63–T65). The canvas is a single NSView, so documents with millions of
 lines need the custom scroller.
 
@@ -224,6 +223,11 @@ grammar support; blank lines stay inside a block rather than splitting it. **Vie
 also has Fold/Unfold All and Fold Level 1–4. A folded line shows a ⋯ badge, and a fold
 hiding the cursor opens by itself. Folds aren't saved across restarts yet.
 
+**Word wrap** — **⌥⌘W**, or `"word_wrap": true`. Wraps to the window width by default; set
+`"wrap_width"` to a column number to wrap to a ruler instead. Long words break rather than
+running off the edge, cursor up/down steps through wrapped rows, and the gutter numbers the
+line once rather than each row. Continuation rows aren't indented to match their line yet.
+
 ## Layout
 
 ```
@@ -238,7 +242,9 @@ Sources/MTextCore/   platform-free engine (no AppKit) — unit tested
   Completions.swift    autocomplete candidates + fuzzy ranking, generation-cached
   Snippet.swift        .sublime-snippet body syntax: stops, mirrors, placeholders, vars
   SnippetSession.swift live tab-stop tracking in byte offsets, mirror updates
-  Folding.swift        indent-based fold regions + the document-line ↔ screen-row mapping
+  Folding.swift        indent-based fold regions
+  WordWrap.swift       greedy word-aware line breaking, in character columns
+  RowMap.swift         folds + wrap unified: document line <-> screen row
 Sources/MTextUI/     AppKit UI: EditorView (CoreText), window controller
 Sources/m_text/      executable: app bootstrap + programmatic main menu
 Sources/MTextTestKit/  assertion harness + runner (XCTest replacement)

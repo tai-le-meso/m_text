@@ -48,14 +48,14 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T90 Autocomplete | ✅ (project symbols need an index built by Goto Symbol/Definition first) |
 | T91 Snippets | ✅ (only typing/backspace keep a session alive — see TASKS.md) |
 | T92 Code folding | ✅ (folds not persisted in the session — see TASKS.md) |
+| T28 Word wrap | ✅ (no indented continuation rows — see TASKS.md) |
 
-Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**. **T93 (minimap) is the next task**, per
-`TASKS.md` — or **T28 (word wrap)**, which is now unblocked: T92 built the document-line ↔
-visual-row mapping (`FoldSet`) that word wrap was waiting on, so it would extend that
-abstraction rather than introduce a parallel one.
+Phase 7 in progress: **T90 ✅, T91 ✅, T92 ✅**, and **T28 ✅** (word wrap, carried over from
+Phase 2 — it was waiting on T92's line↔row mapping). **T93 (minimap) is the next task**, per
+`TASKS.md`; it can render from `RowMap` rather than re-deriving layout.
 
-Test status: **297 passed, 1196 assertions** — run, along with `swift build -c release`,
-as of T92. (The 8 `SessionTests` that had never been executed when this file was first
+Test status: **323 passed, 1272 assertions** — run, along with `swift build -c release`,
+as of T28. (The 8 `SessionTests` that had never been executed when this file was first
 written have since run clean.)
 
 ### Landed recently
@@ -69,9 +69,9 @@ and known gaps — read that for the task you're touching rather than re-derivin
 - **T90** autocomplete: `Completions.swift`, `CompletionPopup` (non-activating panel).
 - **T91** snippets: `Snippet.swift` (body syntax), `SnippetSession.swift` (byte-offset stop
   tracking + mirrors), `SnippetStore` / `BuiltInSnippets`, `EditorView+Snippets.swift`.
-- **T92** folding: `Folding.swift` (`FoldFinder` + the `FoldSet` line↔row mapping that word
-  wrap will also need), `EditorView+Folding.swift`, `VisibleLines` replacing the line range
-  drawing used to iterate.
+- **T92** folding: `Folding.swift` (`FoldFinder` + `FoldSet`), `EditorView+Folding.swift`.
+- **T28** word wrap: `WordWrap.swift` (breaking), `RowMap.swift` (folds + wrap unified),
+  `VisibleRows` replacing T92's `VisibleLines` throughout drawing.
 
 ---
 
