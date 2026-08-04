@@ -291,6 +291,12 @@ extension EditorView {
         setViewOverride("draw_white_space", .bool(!showsInvisibles))
     }
 
+    /// T28 — a view override like the other View-menu toggles, so a settings reload doesn't
+    /// silently switch wrapping back.
+    @objc public func toggleWordWrap(_ sender: Any?) {
+        setViewOverride("word_wrap", .bool(!wordWrapEnabled))
+    }
+
     // Font zoom is a view override for the same reason. It deliberately overrides only
     // `font_size` and leaves `font_face` alone, so zooming no longer discards a
     // `font_face` chosen in settings the way assigning `monospacedSystemFont` here did.
@@ -333,6 +339,9 @@ extension EditorView {
             return true
         case #selector(EditorView.toggleInvisibles(_:)):
             menuItem.state = showsInvisibles ? .on : .off
+            return true
+        case #selector(EditorView.toggleWordWrap(_:)):
+            menuItem.state = wordWrapEnabled ? .on : .off
             return true
         case #selector(EditorView.showCompletions(_:)):
             // Mirrors the guards in `showCompletions(_:)` itself, so the menu greys out

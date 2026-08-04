@@ -128,6 +128,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     var folds = FoldSet() {
         didSet {
             guard folds != oldValue else { return }
+            rowMap.setFolds(folds)
             layout.invalidateAll()
             updateFrameSize()
             needsDisplay = true
@@ -138,6 +139,23 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     /// edit added or removed and shift folds to match. `didEdit` only receives the
     /// resulting selection, so the delta has to be remembered rather than derived.
     var lastKnownLineCount = 1
+
+    // MARK: - Word wrap (T28)
+
+    /// Folds *and* wrap, combined. Every screen position goes through this.
+    var rowMap = RowMap()
+
+    /// `word_wrap` from the settings stack.
+    public var wordWrapEnabled = false {
+        didSet { if wordWrapEnabled != oldValue { rebuildRowMap() } }
+    }
+    /// `wrap_width` — columns to wrap at, or 0 for "the window width".
+    public var wrapColumn = 0 {
+        didSet { if wrapColumn != oldValue { rebuildRowMap() } }
+    }
+    /// Wrap width the row map was last built for, so a resize that doesn't change the
+    /// column count (most of them) doesn't rebuild the whole index.
+    var lastBuiltWrapWidth = -1
 
     // MARK: - Snippets (T91)
 
@@ -229,6 +247,8 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         baselineOffset = font.ascender
         styledFonts.removeAll(keepingCapacity: true)
         layout.font = font
+        // A different font means a different character width, so every wrap point moves.
+        rebuildRowMap()
         updateFrameSize()
         needsDisplay = true
     }
@@ -274,9 +294,11 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         // invalidation — it keys on `document.generation`, which has already moved.)
         hideCompletions()
         suppressedCompletionWord = nil
-        // Folds describe the old document's line structure (T92).
+        // Folds describe the old document's line structure (T92), and every line's wrap
+        // has to be measured afresh (T28).
         folds = FoldSet()
         lastKnownLineCount = document.lineCount
+        rebuildRowMap()
         selection = Selection(caret: .zero)
         markedText = ""
         markedStart = nil
@@ -360,6 +382,10 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         // Terminates rather than ping-ponging: `updateFrameSize` only calls
         // `setFrameSize` when the size actually differs, and resizing the *document*
         // view doesn't resize the clip view that drives this notification.
+        // A narrower or wider viewport changes how many columns fit, so the wrap points
+        // move with it (T28). Guarded inside so a resize that leaves the column count
+        // unchanged — most of them — doesn't rebuild the index.
+        wrapWidthDidChange()
         updateFrameSize()
         setNeedsDisplay(visibleRect)
         hideCompletionsOnViewportChange()
@@ -382,11 +408,15 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
 
     func updateFrameSize() {
         let visible = enclosingScrollView?.contentSize ?? bounds.size
-        let contentWidth = textOriginX + charWidth * CGFloat(document.longestLineLength) + textPadding * 2
-        // Rows, not lines: folding shortens the document view, which is what makes the
-        // scroll bar reflect what you can actually see (T92).
-        let rows = folds.visibleLineCount(totalLines: document.lineCount)
-        let contentHeight = topPadding * 2 + lineHeight * CGFloat(rows)
+        // Wrapping means no horizontal scroll by definition — the canvas is exactly the
+        // viewport, which is also what stops the wrap width and the canvas width from
+        // chasing each other on every resize.
+        let contentWidth = rowMap.isWrapping
+            ? 0
+            : textOriginX + charWidth * CGFloat(document.longestLineLength) + textPadding * 2
+        // Rows, not lines: folding shortens the document view and wrapping lengthens it,
+        // which is what makes the scroll bar reflect what you can actually see (T92, T28).
+        let contentHeight = topPadding * 2 + lineHeight * CGFloat(rowMap.totalRows)
         let size = NSSize(width: max(visible.width, contentWidth),
                           height: max(visible.height, contentHeight))
         if frame.size != size { setFrameSize(size) }
@@ -403,40 +433,61 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         }
     }
 
-    /// Y of a document line, **via its visual row** — with anything folded, line *n* is no
-    /// longer row *n* (T92). Everything that positions by line goes through here.
+    /// Y of a document line's **first** row. Positions that need an exact row (a caret
+    /// mid-way through a wrapped line) go through `rowTop(_:)` with `rowMap.row(at:)`.
     func lineTop(_ index: Int) -> CGFloat {
-        topPadding + CGFloat(folds.visualRow(forLine: index)) * lineHeight
+        rowTop(rowMap.firstRow(ofLine: index))
     }
 
-    /// The document lines actually on screen, in screen order.
+    func rowTop(_ row: Int) -> CGFloat { topPadding + CGFloat(row) * lineHeight }
+
+    /// The screen rows on display, each carrying the document line and the slice of that
+    /// line's columns drawn on it.
     ///
-    /// Walks *rows* and maps each to a line rather than walking a line range and skipping
-    /// hidden ones: with a large region collapsed, the span between the first and last
-    /// visible line can be the whole document, and skipping through it every repaint would
-    /// make drawing O(document) instead of O(screen).
-    func visibleLines(in rect: NSRect) -> VisibleLines? {
+    /// Replaces the line-based version from T92: with wrapping, one line can occupy several
+    /// rows, so "which lines are visible" is no longer enough to draw with — every row needs
+    /// its own column range and its own Y.
+    func visibleRows(in rect: NSRect) -> VisibleRows? {
         guard lineHeight > 0, document.lineCount > 0 else { return nil }
-        let rowCount = folds.visibleLineCount(totalLines: document.lineCount)
+        let total = rowMap.totalRows
         let firstRow = max(0, Int((rect.minY - topPadding) / lineHeight))
-        let lastRow = min(rowCount - 1, Int((rect.maxY - topPadding) / lineHeight))
+        let lastRow = min(total - 1, Int((rect.maxY - topPadding) / lineHeight))
         guard firstRow <= lastRow else { return nil }
 
-        var lines: [Int] = []
-        lines.reserveCapacity(lastRow - firstRow + 1)
+        var rows: [VisibleRow] = []
+        rows.reserveCapacity(lastRow - firstRow + 1)
         for row in firstRow ... lastRow {
-            let line = folds.line(forVisualRow: row)
-            guard line < document.lineCount else { break }
-            lines.append(line)
+            let location = rowMap.location(ofRow: row)
+            guard location.line < document.lineCount else { break }
+            let text = document.line(location.line)
+            let columns: Range<Int>
+            if rowMap.isWrapping {
+                let breaks = wrapBreaks(forLine: location.line, text: text)
+                columns = WordWrapper.columnRange(ofRow: location.rowInLine,
+                                                 breaks: breaks, lineLength: text.count)
+            } else {
+                columns = 0 ..< text.count
+            }
+            rows.append(VisibleRow(row: row, line: location.line,
+                                   rowInLine: location.rowInLine, columns: columns))
         }
-        return lines.isEmpty ? nil : VisibleLines(lines: lines)
+        return rows.isEmpty ? nil : VisibleRows(rows: rows)
+    }
+
+    /// Break columns for a line, computed on demand. Cheap enough per repaint (one greedy
+    /// scan of a single line) that caching it separately from `rowMap` would be complexity
+    /// without benefit.
+    func wrapBreaks(forLine line: Int, text: String? = nil) -> [Int] {
+        guard rowMap.isWrapping else { return [] }
+        return WordWrapper.breaks(for: text ?? document.line(line),
+                                  width: rowMap.wrapWidth, tabSize: foldTabSize)
     }
 
     /// First…last visible line as a plain range, for callers that only need bounds rather
     /// than exactly which lines are drawn — highlighting priority and span invalidation,
     /// where covering a few folded lines too is harmless and cheaper than being exact.
     func visibleLineBounds(in rect: NSRect) -> ClosedRange<Int>? {
-        guard let visible = visibleLines(in: rect) else { return nil }
+        guard let visible = visibleRows(in: rect) else { return nil }
         return visible.lowerBound ... visible.upperBound
     }
 
@@ -453,31 +504,64 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         return textOriginX + CTLineGetOffsetForStringIndex(entry.ctLine, utf16, nil)
     }
 
+    /// Screen x of a column **on a given row** — the column's offset within its line,
+    /// rebased so the row's first column sits at the text origin. Identical to `xOffset`
+    /// when wrapping is off, since every row then starts at column 0.
+    func x(forColumn column: Int, in row: VisibleRow) -> CGFloat {
+        guard rowMap.isWrapping else { return xOffset(ofColumn: column, line: row.line) }
+        let rowStart = xOffset(ofColumn: row.columns.lowerBound, line: row.line)
+        return textOriginX + (xOffset(ofColumn: column, line: row.line) - rowStart)
+    }
+
     func caretRect(for position: Position) -> NSRect {
         let p = document.clamp(position)
-        return NSRect(x: xOffset(ofColumn: p.column, line: p.line),
-                      y: lineTop(p.line),
-                      width: 1.5,
-                      height: lineHeight)
+        guard rowMap.isWrapping else {
+            return NSRect(x: xOffset(ofColumn: p.column, line: p.line),
+                          y: lineTop(p.line), width: 1.5, height: lineHeight)
+        }
+        // On a wrapped line the caret's row and its x both depend on which wrapped row the
+        // column falls on, so both come from the break points rather than from the line.
+        let text = document.line(p.line)
+        let breaks = wrapBreaks(forLine: p.line, text: text)
+        let rowInLine = WordWrapper.row(forColumn: p.column, breaks: breaks)
+        let columns = WordWrapper.columnRange(ofRow: rowInLine, breaks: breaks, lineLength: text.count)
+        let rowStart = xOffset(ofColumn: columns.lowerBound, line: p.line)
+        return NSRect(x: textOriginX + (xOffset(ofColumn: p.column, line: p.line) - rowStart),
+                      y: rowTop(rowMap.firstRow(ofLine: p.line) + rowInLine),
+                      width: 1.5, height: lineHeight)
     }
 
     func position(at point: NSPoint) -> Position {
         // Clamp before converting to Int: externally supplied points can be far out
         // of range or non-finite, and Int(_: CGFloat) traps on both.
         let raw = (point.y - topPadding) / lineHeight
-        let rowCount = folds.visibleLineCount(totalLines: document.lineCount)
+        let rowCount = rowMap.totalRows
         let bounded = raw.isFinite ? min(max(raw, 0), CGFloat(rowCount)) : 0
-        // The click lands on a *row*; which document line that is depends on what is
-        // folded above it (T92).
+        // The click lands on a *row*; which line and which part of it depends on both what
+        // is folded above (T92) and how the line wraps (T28).
         let row = max(0, min(rowCount - 1, Int(bounded)))
-        let lineIndex = max(0, min(document.lineCount - 1, folds.line(forVisualRow: row)))
+        let location = rowMap.location(ofRow: row)
+        let lineIndex = max(0, min(document.lineCount - 1, location.line))
 
         let entry = cachedLine(lineIndex)
         guard !entry.text.isEmpty else { return Position(line: lineIndex, column: 0) }
-        let x = point.x - textOriginX
-        guard x.isFinite else { return Position(line: lineIndex, column: 0) }
+
+        // Rebase the click into the line's own coordinates: on a wrapped row, screen x is
+        // measured from that row's first column, not from the start of the line.
+        var columns = 0 ..< entry.text.count
+        var rowStartX: CGFloat = 0
+        if rowMap.isWrapping {
+            let breaks = wrapBreaks(forLine: lineIndex, text: entry.text)
+            columns = WordWrapper.columnRange(ofRow: location.rowInLine, breaks: breaks,
+                                              lineLength: entry.text.count)
+            rowStartX = xOffset(ofColumn: columns.lowerBound, line: lineIndex) - textOriginX
+        }
+        let x = point.x - textOriginX + rowStartX
+        guard x.isFinite else { return Position(line: lineIndex, column: columns.lowerBound) }
         let u16 = CTLineGetStringIndexForPosition(entry.ctLine, CGPoint(x: x, y: 0))
-        let column = u16 == kCFNotFound ? entry.text.count : self.column(fromUTF16: u16, in: entry.text)
+        var column = u16 == kCFNotFound ? entry.text.count : self.column(fromUTF16: u16, in: entry.text)
+        // Clicking past the end of a wrapped row belongs to that row, not to the next one.
+        column = min(max(column, columns.lowerBound), columns.upperBound)
         return document.clamp(Position(line: lineIndex, column: column))
     }
 
@@ -516,7 +600,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         themeBackground.setFill()
         dirtyRect.fill()
 
-        guard let visible = visibleLines(in: dirtyRect) else {
+        guard let visible = visibleRows(in: dirtyRect) else {
             drawGutter(in: dirtyRect, context: context, lines: nil)
             return
         }
@@ -536,13 +620,16 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         }
     }
 
-    private func drawCurrentLineHighlight(_ visible: VisibleLines) {
+    private func drawCurrentLineHighlight(_ visible: VisibleRows) {
         guard highlightsCurrentLine, !selection.isMultiple, !selection.hasSelectedText, isActive
         else { return }
         let lineIndex = selection.primary.head.line
         guard visible.contains(lineIndex) else { return }
         themeLineHighlight.setFill()
-        NSRect(x: 0, y: lineTop(lineIndex), width: bounds.width, height: lineHeight).fill()
+        // Every row of a wrapped line, so the highlight doesn't stop halfway through it.
+        for row in visible.rows(forLine: lineIndex) {
+            NSRect(x: 0, y: rowTop(row.row), width: bounds.width, height: lineHeight).fill()
+        }
     }
 
     private func drawRulers(_ dirtyRect: NSRect) {
@@ -554,7 +641,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         }
     }
 
-    private func drawSelection(_ visible: VisibleLines) {
+    private func drawSelection(_ visible: VisibleRows) {
         themeSelection.setFill()
 
         for region in selection.regions where !region.isEmpty {
@@ -562,37 +649,56 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
             let end = region.end
             guard end.line >= visible.lowerBound, start.line <= visible.upperBound else { continue }
 
-            // Only lines actually on screen: a selection spanning a collapsed region must
-            // not paint the hidden lines' worth of highlight over the fold.
-            for lineIndex in visible.lines where lineIndex >= start.line && lineIndex <= end.line {
-                let fromColumn = lineIndex == start.line ? start.column : 0
-                let isLastLine = lineIndex == end.line
-                let toColumn = isLastLine ? end.column : document.lineLength(lineIndex)
+            // Per *row*, not per line: a selection must be clipped to each wrapped row's
+            // own column slice, and must not paint over a collapsed region at all.
+            for row in visible.rows where row.line >= start.line && row.line <= end.line {
+                let lineFrom = row.line == start.line ? start.column : 0
+                let isLastLine = row.line == end.line
+                let lineTo = isLastLine ? end.column : document.lineLength(row.line)
 
-                let x0 = xOffset(ofColumn: fromColumn, line: lineIndex)
-                var x1 = xOffset(ofColumn: toColumn, line: lineIndex)
-                // A selection running through a line break shows the newline as a
-                // sliver of highlight past the last character.
-                if !isLastLine { x1 += charWidth * 0.5 }
-                NSRect(x: x0, y: lineTop(lineIndex), width: max(1, x1 - x0), height: lineHeight).fill()
+                // Intersect the selected columns with the columns this row shows.
+                let from = max(lineFrom, row.columns.lowerBound)
+                let to = min(lineTo, row.columns.upperBound)
+                guard from <= to else { continue }
+
+                let x0 = x(forColumn: from, in: row)
+                var x1 = x(forColumn: to, in: row)
+                // A selection running through a line break shows the newline as a sliver of
+                // highlight past the last character — only on the row that actually ends the
+                // line, not on every wrapped row of it.
+                if !isLastLine, to == lineTo { x1 += charWidth * 0.5 }
+                NSRect(x: x0, y: rowTop(row.row), width: max(1, x1 - x0), height: lineHeight).fill()
             }
         }
     }
 
-    private func drawText(_ visible: VisibleLines, context: CGContext) {
-        for lineIndex in visible.lines {
-            let entry = cachedLine(lineIndex)
+    private func drawText(_ visible: VisibleRows, context: CGContext) {
+        for row in visible.rows {
+            let entry = cachedLine(row.line)
             if entry.text.isEmpty { continue }
-            let baseline = lineTop(lineIndex) + baselineOffset
+            let baseline = rowTop(row.row) + baselineOffset
+
             context.saveGState()
+            // Draw the line's *whole* `CTLine`, shifted so this row's first column lands at
+            // the text origin, and clipped to the row. Reusing the cached per-line CTLine
+            // rather than shaping one per wrapped row keeps `LayoutCache` untouched and
+            // avoids re-shaping the same text once per row it happens to occupy.
+            if rowMap.isWrapping {
+                context.clip(to: NSRect(x: textOriginX, y: rowTop(row.row),
+                                        width: max(0, bounds.width - textOriginX),
+                                        height: lineHeight))
+            }
             context.textMatrix = .identity
-            context.translateBy(x: textOriginX, y: baseline)
+            // The CTLine starts at column 0, so shift left by this row's first column's
+            // offset within the line to bring it to the text origin.
+            let rowStartOffset = xOffset(ofColumn: row.columns.lowerBound, line: row.line) - textOriginX
+            context.translateBy(x: textOriginX - rowStartOffset, y: baseline)
             context.scaleBy(x: 1, y: -1)
             CTLineDraw(entry.ctLine, context)
             context.restoreGState()
 
-            if showsInvisibles { drawInvisibles(entry.text, line: lineIndex) }
-            drawFoldedIndicator(forLine: lineIndex)
+            if showsInvisibles { drawInvisibles(entry.text, line: row.line) }
+            if row.rowInLine == 0 { drawFoldedIndicator(forLine: row.line) }
         }
     }
 
@@ -606,7 +712,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         }
     }
 
-    private func drawCarets(_ visible: VisibleLines) {
+    private func drawCarets(_ visible: VisibleRows) {
         guard isActive, caretVisible else { return }
         themeCaret.setFill()
         for region in selection.regions where visible.contains(region.head.line) {
@@ -614,7 +720,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         }
     }
 
-    private func drawGutter(in dirtyRect: NSRect, context: CGContext, lines visible: VisibleLines?) {
+    private func drawGutter(in dirtyRect: NSRect, context: CGContext, lines visible: VisibleRows?) {
         guard showsGutter, gutterWidth > 0 else { return }
         // Pinned to the viewport's left edge so it survives horizontal scrolling.
         let originX = (enclosingScrollView?.contentView.bounds.origin.x).map { max(0, $0) } ?? 0
@@ -628,6 +734,8 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         let caretLines = Set(selection.regions.map { $0.head.line })
         let emphasis = colorScheme.globals.foreground?.nsColor ?? .labelColor
 
+        // One number per *line*, drawn at its first row — a wrapped line's continuation
+        // rows get no number, matching every other editor.
         for lineIndex in visible.lines {
             // A triangle only where something can actually fold, so the gutter isn't a
             // column of decoration (T92).
@@ -668,6 +776,7 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
         scrollToPrimaryCaret()
         // T91: keep an active snippet's stop ranges in step, or end it if this edit came
         // from a path that can't describe itself (see `pendingSnippetEdit`).
+        rowMapDidEdit(fromLine: firstChangedLine)
         foldsDidEdit(fromLine: firstChangedLine)
         if snippetSession != nil, !isApplyingSnippetMirrors {
             if let pending = pendingSnippetEdit {
@@ -760,24 +869,44 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
 
 }
 
-/// The document lines on screen for one repaint, in screen order (T92).
+/// One screen row: which document line it belongs to, which of that line's wrapped rows it
+/// is, and the slice of columns drawn on it (T28).
+struct VisibleRow {
+    let row: Int
+    let line: Int
+    let rowInLine: Int
+    /// Columns of `line` this row covers. The whole line when wrapping is off.
+    let columns: Range<Int>
+}
+
+/// The rows on screen for one repaint, in screen order.
 ///
-/// Not a `ClosedRange`: with a region folded, the visible lines are no longer contiguous,
-/// so drawing has to iterate an explicit list. `lowerBound`/`upperBound` and `contains`
-/// keep the call sites that only need containment or clamping simple.
-struct VisibleLines {
-    let lines: [Int]
+/// Replaced the line-based `VisibleLines` from T92 when wrapping arrived: visible lines are
+/// not contiguous (folding) *and* a single line can occupy several rows (wrapping), so
+/// neither a range nor a line list is enough to draw from.
+struct VisibleRows {
+    let rows: [VisibleRow]
     private let lookup: Set<Int>
 
-    init(lines: [Int]) {
-        self.lines = lines
-        self.lookup = Set(lines)
+    init(rows: [VisibleRow]) {
+        self.rows = rows
+        self.lookup = Set(rows.map(\.line))
     }
 
-    var lowerBound: Int { lines.first ?? 0 }
-    var upperBound: Int { lines.last ?? 0 }
+    /// Distinct document lines on screen, in order — for callers that work per line rather
+    /// than per row (the gutter draws one number per line, not per wrapped row).
+    var lines: [Int] {
+        var seen = Set<Int>()
+        return rows.compactMap { seen.insert($0.line).inserted ? $0.line : nil }
+    }
+
+    var lowerBound: Int { rows.first?.line ?? 0 }
+    var upperBound: Int { rows.last?.line ?? 0 }
 
     /// True only for lines actually drawn — a line inside a collapsed region falls between
     /// the bounds but is not on screen.
     func contains(_ line: Int) -> Bool { lookup.contains(line) }
+
+    /// Every row belonging to `line`, for splitting a selection or match across wraps.
+    func rows(forLine line: Int) -> [VisibleRow] { rows.filter { $0.line == line } }
 }

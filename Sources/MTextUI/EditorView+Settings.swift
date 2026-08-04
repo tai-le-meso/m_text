@@ -22,6 +22,10 @@ extension EditorView {
         if rulerColumns != settings.rulers { rulerColumns = settings.rulers }
         if indentUnit != settings.indentUnit { indentUnit = settings.indentUnit }
         if autoCompleteEnabled != settings.autoComplete { autoCompleteEnabled = settings.autoComplete }
+        // Order matters: `wrapColumn` first, so switching wrapping on rebuilds the row map
+        // once at the final width rather than twice.
+        if wrapColumn != settings.wrapWidth { wrapColumn = settings.wrapWidth }
+        if wordWrapEnabled != settings.wordWrap { wordWrapEnabled = settings.wordWrap }
         // `settings.colorScheme` is intentionally not applied: colour schemes are loaded
         // and installed by name (`PackageManager`) but never indexed by name, so there is
         // nothing to look one up in — every editor uses `ColorScheme.builtInDefault()`.
