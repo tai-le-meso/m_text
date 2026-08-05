@@ -18,6 +18,7 @@ you will arrive: something looks wrong on screen and you don't yet know why.
 | Find bar is on one side but searches/highlights the other; match count belongs to neither | `focusedPaneIndex` out of step with real focus | [S3](#s3) |
 | ⌘F always opens on the same side regardless of which pane you're in | ⌘F trusted the stored focus index, not the editor that received it | [S3](#s3) |
 | Text sits in a thin strip at the top; clicking below it does nothing | Document view frame collapsed to content size | [S4](#s4) |
+| Typing does nothing at all, every file, but menus/clicks/scroll still work | Delivery or focus, not handling — the smoke test **cannot** see this | [playbook 6](#playbook-6) |
 | "Can't edit or do anything" — window fine, not crashed, but typing barely registers; only in big files | A full-buffer scan running on every keystroke | [S5](#s5) |
 | Any pane/divider/sizing weirdness after adding a split | `NSSplitView` never lays out a newly added subview | [P1](#p1) |
 | A "fix" that changes focus appears to do nothing at all | `dismissFind()` steals first responder back | [P2](#p2) |
@@ -95,6 +96,30 @@ severe bug in this project's history has lived in that gap. Proper `MTextUI` tes
 mean adding it to the test target and bootstrapping `NSApplication`, which would make
 `make test` require a window server — the reason it hasn't been done. Until then the smoke
 test is the safety net.
+
+---
+
+<a id="playbook-6"></a>
+### 6. "Typing does nothing" — trace delivery, don't test handling
+
+**The smoke test cannot reproduce this class of bug**, and it is important to know why: a
+process launched from a terminal is never frontmost, so macOS refuses its window key status
+(`isKeyWindow == false`, verified) and **never routes real key events to it**. The harness
+therefore injects `NSEvent`s directly. That proves the editor *handles* keys; it says
+nothing about whether the OS *delivers* them. "I type and nothing appears" lives exactly in
+that gap, so a green smoke run does not clear it.
+
+Use **`MTEXT_INPUT_DEBUG=1 make debug`** (`InputDiagnostics.swift`) and type in the window.
+It logs, per keystroke: whether the app received the event at all (an app-level monitor,
+ahead of the responder chain), whether the app is active and the window key, who holds first
+responder, whether `EditorView.keyDown` was reached, whether the keymap swallowed it, and
+whether `insertText` moved `document.generation`. **Whichever line stops appearing is the
+layer that broke** — no event at all means delivery/focus, an event with no `keyDown` means
+something upstream ate it, a `keyDown` with no `insertText` means the keymap or a command
+handler, and an `insertText` that doesn't move the generation means the edit itself.
+
+Ask the user for that log rather than theorising: it is how the ⌘F blank-pane bug was
+finally cracked (S1), and the questions that cut hardest were behavioural, not technical.
 
 ---
 

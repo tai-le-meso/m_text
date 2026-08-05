@@ -58,6 +58,10 @@ public final class MainWindowController: NSWindowController {
         return String(describing: type(of: hit))
     }
 
+    /// The editor the other hooks drive, so a check can compare it against whoever actually
+    /// holds first responder rather than assuming.
+    public var smokeTestFocusedEditor: NSView { editor }
+
     /// Focuses the editor the other hooks drive, and reports whether it actually took
     /// first responder. Typing checks have to send events at the *window*, so they need
     /// both halves to be the same editor — see `smokeTestEditorHeight` on why the view

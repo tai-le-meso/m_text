@@ -5,6 +5,7 @@ import MTextCore
 extension EditorView {
 
     public override func keyDown(with event: NSEvent) {
+        InputDiagnostics.log("  -> EditorView.keyDown reached, marked=\(hasMarkedText())")
         // Mid-composition (an IME candidate window is open), every keystroke belongs to
         // the input method, not the keymap engine — a plain `escape`/`enter`/`tab` (or
         // any function-row key some IMEs use for conversion mode) would otherwise be
@@ -18,9 +19,11 @@ extension EditorView {
         }
         switch keymapEngine.match(event) {
         case .command(let name, let args):
+            InputDiagnostics.log("  -> keymap matched command \(name), handler=\(onKeymapCommand != nil)")
             onKeymapCommand?(name, args)
             return
         case .pendingChord:
+            InputDiagnostics.log("  -> keymap swallowed it as a pending chord")
             // Swallow the keystroke silently — same as AppKit's own menu system
             // swallows the first key of a would-be menu shortcut.
             return
@@ -378,6 +381,14 @@ extension EditorView {
 
     public func insertText(_ string: Any, replacementRange: NSRange) {
         let input = (string as? NSAttributedString)?.string ?? (string as? String) ?? ""
+        let generationBeforeInsert = document.generation
+        defer {
+            InputDiagnostics.log("""
+                  -> insertText \(String(reflecting: input)): \
+                generation \(generationBeforeInsert) -> \(document.generation)\
+                \(generationBeforeInsert == document.generation ? "  ** DOCUMENT DID NOT CHANGE **" : "")
+                """)
+        }
         deleteMarkedText()
         guard !input.isEmpty else { return }
 

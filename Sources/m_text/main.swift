@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else if controllers.isEmpty {
             newWindow(nil)
         }
+        InputDiagnostics.installMonitor()
         runSmokeTestIfRequested()
     }
 
@@ -359,6 +360,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             func typingCheck() {
                 let hit = controller.smokeTestViewUnderEditorCentre()
                 check(hit == "EditorView", "a click in the editor's middle reaches it (hit \(hit))")
+                // Before forcing anything: whoever holds focus as the app comes up is who
+                // receives your keystrokes. Every other check here calls
+                // `smokeTestFocusEditor()` first, which would paper over an app that opens
+                // with focus somewhere the text can never reach.
+                // NB: this harness can never hold a *key* window — a process launched from a
+                // terminal isn't frontmost, so macOS refuses key status and the OS never
+                // routes real key events here. That is why these checks inject events
+                // directly, and why they cannot see a fault in delivery itself. Use
+                // `MTEXT_INPUT_DEBUG=1` for that (see `InputDiagnostics`).
+                check(window.canBecomeKey, "the window is allowed to become key")
                 check(controller.smokeTestFocusEditor(), "the focused editor takes first responder")
                 controller.smokeTestEditorText = ""
 
@@ -370,7 +381,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         characters: characters, charactersIgnoringModifiers: characters,
                         isARepeat: false, keyCode: keyCode)
                     else { return }
-                    window.sendEvent(event)
+                    // Through NSApp, not the window: NSApplication offers every key-down to
+                    // the main menu's `performKeyEquivalent` *before* the window ever sees
+                    // it. A menu item whose key equivalent matches ordinary typing swallows
+                    // the keystroke there, and a window-level injection cannot see that.
+                    NSApp.sendEvent(event)
                 }
 
                 press("h", keyCode: 4)
