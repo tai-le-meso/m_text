@@ -171,6 +171,17 @@ whenever a UI bug escapes** — that is the point of it. Details and its known l
 view-tree, layer-tree and one-line trace dumps. **Deliberately no call sites**; add one where
 you need it and remove it after.
 
+`Sources/MTextUI/InputDiagnostics.swift` — env-gated (`MTEXT_INPUT_DEBUG=1 make debug`)
+keyboard trace: per keystroke, whether the app received the event, whether the window is key,
+who holds first responder, whether `EditorView.keyDown` ran, whether the keymap swallowed it,
+and whether `insertText` moved the document generation. Unlike `LayoutDiagnostics` it *does*
+have call sites — all `guard isEnabled` one-liners.
+
+⚠️ **The smoke test cannot see a "typing does nothing" bug.** A terminal-launched process is
+never frontmost, so macOS refuses its window key status and never routes real key events to
+it; the harness injects `NSEvent`s directly, which tests handling, not delivery. Use the
+input trace for anything in that class — see `KNOWLEDGE.md` playbook §6.
+
 ## Other known issues / gaps
 
 - **Undo history is not persisted** across restarts — the deliberately scoped-out part
