@@ -106,6 +106,39 @@ public final class MainWindowController: NSWindowController {
     /// Tab-bar state for `MTEXT_SMOKE_TEST`. The active editor's geometry is reported from
     /// the *controller's* notion of the active tab, so a check cannot accidentally measure
     /// a different tab's editor than the one it is driving.
+    /// Any layer in the window whose content escapes its own view's bounds, described for a
+    /// smoke assertion. Returns `nil` when everything stays inside.
+    ///
+    /// This is the shape of the bug that rendered the whole window blank: a view collapsed
+    /// to zero width kept a full-size backing layer, and because `CALayer` does not clip
+    /// sublayers by default, that layer painted over the editor and the tab bar. Nothing
+    /// that inspects *views* can see it — frames, hidden flags, `draw(_:)` calls and even
+    /// the editor's own rasterised layer were all correct throughout.
+    public func smokeTestLayerEscapingItsView() -> String? {
+        guard let content = window?.contentView else { return nil }
+        var found: String?
+        func walk(_ view: NSView) {
+            if found != nil { return }
+            // Only this project's own views. AppKit's controls legitimately overflow their
+            // bounds by a few points (a label's content layer carries ascenders and
+            // descenders), and policing framework internals would make this check noise.
+            let name = String(describing: type(of: view))
+            if let layer = view.layer, !view.isHiddenOrHasHiddenAncestor, !name.hasPrefix("NS") {
+                let bounds = view.bounds.insetBy(dx: -1, dy: -1)
+                for sub in layer.sublayers ?? [] where sub.contents != nil && !sub.isHidden {
+                    if !bounds.contains(sub.frame), !layer.masksToBounds {
+                        found = "\(type(of: view)) bounds \(view.bounds.integral) has unclipped "
+                            + "\(type(of: sub)) at \(sub.frame.integral)"
+                        return
+                    }
+                }
+            }
+            view.subviews.forEach(walk)
+        }
+        walk(content)
+        return found
+    }
+
     public var smokeTestTabCount: Int { focusedPane.tabs.count }
     /// How many of the focused pane's tab containers are visible. Must be exactly one — see
     /// `Pane.visibleContainerCount` for why more than one is invisible-but-fatal.
@@ -945,6 +978,8 @@ public final class MainWindowController: NSWindowController {
         let minimap = Minimap(frame: .zero)
         minimap.editor = editorView
         minimap.translatesAutoresizingMaskIntoConstraints = false
+        // Matches `minimapEnabled`'s default; `onMinimapVisibilityChanged` keeps them in step.
+        minimap.isHidden = true
         editorView.minimap = minimap
 
         let container = NSView()
@@ -980,6 +1015,10 @@ public final class MainWindowController: NSWindowController {
         editorView.onMinimapVisibilityChanged = { [weak editorView] in
             guard let editorView else { return }
             minimapWidth.constant = editorView.minimapEnabled ? Minimap.preferredWidth : 0
+            // Hidden as well as collapsed: a zero-width view still has a backing layer and
+            // still draws, and relying on width alone is what let its content spill over the
+            // pane (see `Minimap.init`). Belt and braces — the masking there is the real fix.
+            minimap.isHidden = !editorView.minimapEnabled
             // The editor's viewport just changed width, so wrapping has to re-measure (T28).
             container.layoutSubtreeIfNeeded()
             editorView.wrapWidthDidChange()
