@@ -513,6 +513,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 check(windowInk > 0,
                       "a window-level snapshot sees that same text (\(windowInk) ink pixels) "
                       + "— if this is 0 while the editor inks, the capture is unreliable")
+
+                // The measurement above deliberately turned word wrap OFF first, which is
+                // exactly how a wrap-only drawing fault stays invisible to it. T28 added a
+                // clip in `drawText` that only applies while wrapping, so the wrapped case
+                // has to be measured on its own.
+                // Lines long enough to actually wrap — short ones never reach the clip.
+                controller.smokeTestEditorText =
+                    String(repeating: "the quick brown fox jumps over the lazy dog ", count: 40)
+                    + "\n"
+                let longUnwrapped = controller.smokeTestRenderedInkPixels()
+                controller.smokeTestSetWordWrap(true)
+                let longWrapped = controller.smokeTestRenderedInkPixels()
+                controller.smokeTestSetWordWrap(false)
+                check(longWrapped > blank,
+                      "a genuinely wrapping line still paints (blank \(blank), "
+                      + "unwrapped \(longUnwrapped), wrapped \(longWrapped))")
             }
 
             run([
