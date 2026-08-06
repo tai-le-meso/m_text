@@ -279,6 +279,22 @@ private func viewMenu() -> NSMenu {
     // therefore the Command Palette.
     menu.addItem(withTitle: "Minimap", action: #selector(EditorView.toggleMinimap(_:)), keyEquivalent: "")
     menu.addItem(.separator())
+    // Three states rather than a "Dark Mode" toggle: "follow the system" is a real choice,
+    // and a checkbox cannot express it (see `AppearancePreference`).
+    let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+    let appearanceMenu = NSMenu(title: "Appearance")
+    appearanceMenu.delegate = AppearanceMenuController.shared
+    for preference in AppearancePreference.allCases {
+        let item = NSMenuItem(title: preference.displayName,
+                              action: #selector(AppearanceMenuController.selectAppearance(_:)),
+                              keyEquivalent: "")
+        item.target = AppearanceMenuController.shared
+        item.representedObject = preference.rawValue
+        appearanceMenu.addItem(item)
+    }
+    appearanceItem.submenu = appearanceMenu
+    menu.addItem(appearanceItem)
+    menu.addItem(.separator())
     menu.addItem(withTitle: "Increase Font Size",
                  action: #selector(EditorView.increaseFontSize(_:)), keyEquivalent: "+")
     menu.addItem(withTitle: "Decrease Font Size",

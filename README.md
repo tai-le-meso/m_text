@@ -44,6 +44,19 @@ Tests do **not** use XCTest — that ships inside Xcode.app, and this project bu
 tests with Command Line Tools alone. `Sources/MTextTestKit` is a small assertion
 harness and runner; `Sources/MTextTests` is a plain executable.
 
+## Appearance and branding
+
+`View ▸ Appearance` — **System**, **Light** or **Dark**. System follows the OS and keeps
+following it, including while the app is open (flipping the OS theme repaints immediately).
+The choice persists across launches.
+
+Colours are the m_text brand palette, taken from the "Syntax stack" mark that is also the app
+icon — which is why the caret and keywords are cyan. Every text/background pair is asserted at
+≥ 4.5:1 (WCAG AA) by `BrandThemeTests`, not assumed.
+
+See `Resources/Branding/README.md` before changing any colour: several values deliberately
+differ from the source design system because the documented ones fail AA on their surface.
+
 ## Current state — Phases 1–7 complete, Phase 8 in progress
 
 **Engine (MTextCore, no AppKit, fully unit tested)**

@@ -139,6 +139,32 @@ public final class MainWindowController: NSWindowController {
         return found
     }
 
+    /// The focused editor's resolved theme colours, for `MTEXT_SMOKE_TEST`. Read back through
+    /// the same accessors drawing uses, so a check sees what the pixels would.
+    public var smokeTestEditorBackgroundHex: String { Self.hex(editor.themeBackground) }
+    public var smokeTestEditorForegroundHex: String {
+        Self.hex(editor.colorScheme.globals.foreground?.nsColor ?? .labelColor)
+    }
+
+    private static func hex(_ color: NSColor) -> String {
+        guard let rgb = color.usingColorSpace(.sRGB) else { return "?" }
+        return String(format: "#%02X%02X%02X",
+                      Int((rgb.redComponent * 255).rounded()),
+                      Int((rgb.greenComponent * 255).rounded()),
+                      Int((rgb.blueComponent * 255).rounded()))
+    }
+
+    /// Shaped lines cached by the focused editor — must be zero right after an
+    /// appearance switch, or already-drawn text keeps the previous palette.
+    public var smokeTestCachedLineCount: Int { editor.smokeTestCachedLineCount }
+
+    /// Forces the focused editor to shape its visible lines, so a check can observe
+    /// the cache being populated and then dropped.
+    public func smokeTestForceLayout() {
+        editor.layoutSubtreeIfNeeded()
+        editor.display()
+    }
+
     public var smokeTestTabCount: Int { focusedPane.tabs.count }
     /// How many of the focused pane's tab containers are visible. Must be exactly one — see
     /// `Pane.visibleContainerCount` for why more than one is invisible-but-fatal.
@@ -958,6 +984,9 @@ public final class MainWindowController: NSWindowController {
 
     private func addTab(for editorView: EditorView, in pane: Pane) -> Tab {
         configureEditor(editorView)
+        // Every editor in the app goes through here, which is what makes this the one place
+        // the brand scheme has to be applied and kept up to date (see `AppearanceController`).
+        AppearanceController.shared.register(editorView)
 
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true

@@ -9,18 +9,25 @@ all: bundle
 release:
 	swift build -c release
 
-# The icon is drawn in code (Tools/make-icon.swift) rather than checked in as a binary
-# blob nobody can diff, and regenerated with `iconutil`, which ships with the Command Line
-# Tools. Offline, like everything else here.
+# The app icon is the brand "Syntax stack" mark (direction 2d): a dark squircle, five
+# syntax-coloured token bars and a cyan caret. It ships as PNG pairs in
+# Resources/Branding/m_text.iconset, which is the design deliverable — the earlier
+# drawn-in-code placeholder (Tools/make-icon.swift) is kept for reference but no longer
+# feeds the bundle, because the brand mark is artwork rather than something to re-derive.
+#
+# `m_text-icon.svg` next to it is the vector source; `m_text-icon-animated.svg` blinks the
+# caret and is for in-app/web use only — an app icon cannot animate.
+#
+# `iconutil` ships with the Command Line Tools. Offline, like everything else here.
 ICNS := $(BUILDDIR)/$(APP).icns
+ICONSET := Resources/Branding/$(APP).iconset
 
 icon: $(ICNS)
 
-$(ICNS): Tools/make-icon.swift
+$(ICNS): $(wildcard $(ICONSET)/*.png)
 	@mkdir -p $(BUILDDIR)
-	swift Tools/make-icon.swift $(BUILDDIR)/$(APP).iconset
-	iconutil -c icns $(BUILDDIR)/$(APP).iconset -o $(ICNS)
-	@echo "Built $(ICNS)"
+	iconutil -c icns $(ICONSET) -o $(ICNS)
+	@echo "Built $(ICNS) from $(ICONSET)"
 
 bundle: release $(ICNS)
 	rm -rf $(BUNDLE)

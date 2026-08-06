@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionManager: SessionManager!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before any window is restored, so the first editor is created already
+        // themed rather than being built light and repainted a moment later.
+        AppearanceController.shared.start()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowWillClose(_:)),
@@ -541,8 +544,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       + (escaping.map { " — \($0)" } ?? ""))
             }
 
+            /// Branding: picking an appearance must actually repaint the editor, and must do
+            /// so for tabs that already exist. The failure mode this guards is specific —
+            /// `LayoutCache` bakes colours into each shaped `CTLine`, so an appearance switch
+            /// that forgets to invalidate leaves already-drawn lines in the old palette while
+            /// new ones use the new one. Colours are read back through the same accessors
+            /// drawing uses, not from the token table, so agreeing with itself isn't enough.
+            func appearanceCheck() {
+                let controllerRef = AppearanceController.shared
+                check(controllerRef.smokeTestRegisteredEditorCount > 0,
+                      "editors are registered for theming "
+                      + "(got \(controllerRef.smokeTestRegisteredEditorCount))")
+
+                controllerRef.setPreference(.light)
+                let lightBG = controller.smokeTestEditorBackgroundHex
+                let lightFG = controller.smokeTestEditorForegroundHex
+                controllerRef.setPreference(.dark)
+                let darkBG = controller.smokeTestEditorBackgroundHex
+                let darkFG = controller.smokeTestEditorForegroundHex
+
+                check(lightBG != darkBG,
+                      "switching appearance repaints the editor (\(lightBG) -> \(darkBG))")
+                check(lightBG.uppercased() == "#F5F5F9" && darkBG.uppercased() == "#0D0C13",
+                      "and lands on the brand surfaces (light \(lightBG), dark \(darkBG))")
+                check(lightFG.uppercased() == "#15131E" && darkFG.uppercased() == "#F3F2F9",
+                      "with the brand text colours (light \(lightFG), dark \(darkFG))")
+
+                controllerRef.setPreference(.light)
+                check(controller.smokeTestEditorBackgroundHex == lightBG,
+                      "switching back restores the light surface exactly")
+
+                // The colours above would still swap if shaped lines were left cached — and
+                // those bake their foreground in, so the buffer would keep the old palette
+                // while newly shaped lines used the new one. Assert the cache is actually
+                // dropped, which is the part that can silently regress.
+                controller.smokeTestEditorText = String(repeating: "let brand = 1\n", count: 40)
+                controller.smokeTestForceLayout()
+                let cachedBefore = controller.smokeTestCachedLineCount
+                check(cachedBefore > 0, "lines are cached before the switch (got \(cachedBefore))")
+                controllerRef.setPreference(.dark)
+                check(controller.smokeTestCachedLineCount == 0,
+                      "an appearance switch drops every shaped line "
+                      + "(got \(controller.smokeTestCachedLineCount))")
+
+                controllerRef.setPreference(.system)
+                check(controllerRef.preference == .system,
+                      "system is a state of its own, not a synonym for light or dark")
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { appearanceCheck() },
                 { renderCheck() },
                 { tabVisibilityCheck("on the restored session") },
                 { newTabCheck() },

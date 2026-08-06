@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>m_text — logo 2d + light/dark branding spec</title>
+<style>
+  /* ============================================================
+     THEME MECHANISM — this is the pattern to implement in the app.
+     data-theme="auto"  -> follow the OS (prefers-color-scheme)
+     data-theme="light" -> forced light
+     data-theme="dark"  -> forced dark
+     ============================================================ */
+  :root, [data-theme="light"] {
+    --bg:#F5F5F9;  --surface:#FFFFFF; --surface2:#F0F0F5; --border:#E7E7EF;
+    --text:#15131E; --muted:#6D6B7E;
+    --primary:#3B2A78; --primary-fill:#3B2A78; --primary-accent:#3B2A78;
+    --primary-bright:#907ED2; --primary-100:rgba(59,42,120,.10); --on-primary:#FFFFFF;
+    --nav-bg:#141220; --nav-text:#B7B5C6;
+    --success:#0F8843; --warning:#996F09; --danger:#E12D33;
+    --sx-keyword:#007FA8; --sx-string:#008937; --sx-number:#987000;
+    --sx-function:#C75200; --sx-type:#8B4EFF; --sx-caret:#007FA8;
+    --sx-selection:rgba(59,42,120,.14); --sx-gutter:#6D6B7E;
+    --shadow:rgba(20,18,30,.06);
+  }
+  [data-theme="dark"] {
+    --bg:#0D0C13;  --surface:#17151F; --surface2:#211E2C; --border:#2A2837;
+    --text:#F3F2F9; --muted:#9794A8;
+    --primary:#8571CD; --primary-fill:#7D67C9; --primary-accent:#8571CD;
+    --primary-bright:#B7ABE2; --primary-100:rgba(131,111,204,.16); --on-primary:#FFFFFF;
+    --nav-bg:#08070C; --nav-text:#8B8899;
+    --success:#12A150; --warning:#B4820A; --danger:#E5484D;
+    --sx-keyword:#00A9E0; --sx-string:#00C950; --sx-number:#EFB000;
+    --sx-function:#FF6900; --sx-type:#955EFF; --sx-caret:#00A9E0;
+    --sx-selection:rgba(131,111,204,.24); --sx-gutter:#9794A8;
+    --shadow:rgba(0,0,0,.45);
+  }
+  @media (prefers-color-scheme: dark) {
+    [data-theme="auto"] {
+      --bg:#0D0C13;  --surface:#17151F; --surface2:#211E2C; --border:#2A2837;
+      --text:#F3F2F9; --muted:#9794A8;
+      --primary:#8571CD; --primary-fill:#7D67C9; --primary-accent:#8571CD;
+      --primary-bright:#B7ABE2; --primary-100:rgba(131,111,204,.16); --on-primary:#FFFFFF;
+      --nav-bg:#08070C; --nav-text:#8B8899;
+      --success:#12A150; --warning:#B4820A; --danger:#E5484D;
+      --sx-keyword:#00A9E0; --sx-string:#00C950; --sx-number:#EFB000;
+      --sx-function:#FF6900; --sx-type:#955EFF; --sx-caret:#00A9E0;
+      --sx-selection:rgba(131,111,204,.24); --sx-gutter:#9794A8;
+      --shadow:rgba(0,0,0,.45);
+    }
+  }
+
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:"Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size:15px; line-height:1.6;
+    transition:background .18s, color .18s;
+  }
+  .wrap { max-width:1080px; margin:0 auto; padding:40px 32px 96px; }
+  h1 { font-size:30px; font-weight:800; letter-spacing:-.02em; margin:0 0 4px; }
+  h2 { font-size:19px; font-weight:700; letter-spacing:-.01em; margin:0 0 4px; }
+  h3 { font-size:13px; font-weight:700; text-transform:uppercase; letter-spacing:.1em;
+       color:var(--muted); margin:0 0 12px; }
+  p { margin:0 0 14px; max-width:70ch; text-wrap:pretty; }
+  .eyebrow { font-size:12px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  code { font-family:"SF Mono", ui-monospace, Menlo, monospace; font-size:.9em;
+         background:var(--surface2); padding:1px 5px; border-radius:5px; }
+
+  /* header */
+  .top { display:flex; align-items:flex-start; gap:18px; margin-bottom:14px; }
+  .wordmark { font-size:26px; font-weight:800; letter-spacing:-.02em; }
+  .wordmark u { text-decoration:none; color:var(--sx-caret); }
+  .modes { margin-left:auto; display:flex; gap:0; background:var(--surface2);
+           border:1px solid var(--border); border-radius:9px; padding:3px; }
+  .modes button {
+    font:inherit; font-size:13px; font-weight:600; border:0; cursor:pointer;
+    padding:6px 14px; border-radius:7px; background:transparent; color:var(--muted);
+  }
+  .modes button[aria-pressed="true"] { background:var(--primary-fill); color:var(--on-primary); }
+  .modehint { font-size:12.5px; color:var(--muted); margin:0 0 30px; }
+
+  section { margin:0 0 40px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:14px;
+          padding:20px 22px; box-shadow:0 1px 2px var(--shadow); }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  @media (max-width:820px){ .grid2 { grid-template-columns:1fr; } }
+
+  .callout { border-left:3px solid var(--primary-accent); background:var(--primary-100);
+             border-radius:0 10px 10px 0; padding:16px 18px; }
+  .callout.warn { border-left-color:var(--warning); background:color-mix(in srgb, var(--warning) 10%, transparent); }
+
+  /* icon strips */
+  .strip { display:flex; align-items:flex-end; gap:22px; padding:22px;
+           border-radius:10px; border:1px solid var(--border); }
+  .strip.lightbg { background:#F5F5F9; }
+  .strip.darkbg  { background:#0D0C13; }
+  .strip .lbl { font-size:11px; color:#8B8899; align-self:center; min-width:52px; }
+  .dock { display:inline-flex; align-items:center; gap:11px; padding:11px 17px;
+          border-radius:12px; }
+  .dock .nm { font-size:19px; font-weight:700; }
+
+  /* swatches */
+  table.sw { width:100%; border-collapse:collapse; font-size:13.5px; }
+  table.sw th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+                color:var(--muted); font-weight:700; padding:0 0 8px; }
+  table.sw td { padding:5px 8px 5px 0; border-top:1px solid var(--border); }
+  .chip { width:34px; height:20px; border-radius:5px; border:1px solid var(--border); display:block; }
+  .hex { font-family:"SF Mono", ui-monospace, Menlo, monospace; font-size:12.5px; color:var(--muted); }
+  .ok  { font-size:11.5px; font-weight:700; color:var(--success); }
+  .low { font-size:11.5px; font-weight:700; color:var(--warning); }
+
+  /* editor mockup */
+  .editor { border:1px solid var(--border); border-radius:12px; overflow:hidden;
+            background:var(--surface); box-shadow:0 1px 2px var(--shadow); }
+  .ed-bar { display:flex; align-items:center; gap:10px; padding:10px 14px;
+            background:var(--surface2); border-bottom:1px solid var(--border); }
+  .tab { font-size:12.5px; font-weight:600; padding:4px 11px; border-radius:7px;
+         background:var(--surface); border:1px solid var(--border); }
+  .tab.active { background:var(--primary-fill); color:var(--on-primary); border-color:transparent; }
+  .ed-body { display:flex; font-family:"SF Mono", ui-monospace, Menlo, monospace;
+             font-size:12.5px; line-height:1.85; }
+  .gutter { padding:14px 10px 14px 14px; color:var(--sx-gutter); text-align:right; user-select:none;
+            background:var(--surface); border-right:1px solid var(--border); }
+  .code { padding:14px 16px; white-space:pre; overflow-x:auto; flex:1; }
+  .code .sel { background:var(--sx-selection); border-radius:3px; }
+  .k{color:var(--sx-keyword)} .s{color:var(--sx-string)} .n{color:var(--sx-number)}
+  .f{color:var(--sx-function)} .t{color:var(--sx-type)} .c{color:var(--muted)}
+  .caret { display:inline-block; width:2px; height:1.05em; background:var(--sx-caret);
+           vertical-align:text-bottom; animation:blink 1.1s steps(1) infinite; }
+  @keyframes blink { 0%,45%{opacity:1} 55%,100%{opacity:.12} }
+
+  .side { display:flex; }
+  .navdemo { background:var(--nav-bg); color:var(--nav-text); padding:14px 12px; width:150px;
+             border-right:1px solid var(--border); font-size:12.5px; }
+  .navdemo .it { padding:6px 10px; border-radius:7px; margin-bottom:2px; }
+  .navdemo .it.on { background:var(--primary-bright); color:#fff; font-weight:700; }
+  ul.tight { margin:0 0 14px; padding-left:20px; }
+  ul.tight li { margin-bottom:6px; max-width:70ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <svg width="56" height="56" viewBox="0 0 1024 1024" aria-label="m_text app icon">
+      <rect width="1024" height="1024" rx="224" fill="#1E2939"/>
+      <rect x="196" y="272" width="120" height="58" rx="29" fill="#00A9E0"/>
+      <rect x="340" y="272" width="230" height="58" rx="29" fill="#F9FAFC" opacity=".85"/>
+      <rect x="264" y="386" width="180" height="58" rx="29" fill="#00C950"/>
+      <rect x="468" y="386" width="140" height="58" rx="29" fill="#EFB000"/>
+      <rect x="264" y="500" width="120" height="58" rx="29" fill="#FF6900"/>
+      <rect x="408" y="500" width="270" height="58" rx="29" fill="#F9FAFC" opacity=".55"/>
+      <rect x="196" y="614" width="200" height="58" rx="29" fill="#8D51FF"/>
+      <rect x="732" y="600" width="56" height="112" rx="12" fill="#00A9E0"/>
+    </svg>
+    <div>
+      <div class="eyebrow">Branding spec · direction 2d</div>
+      <h1>m<u>_</u>text — icon &amp; dual-mode theme</h1>
+      <div class="wordmark" style="font-size:15px;font-weight:500;color:var(--muted)">
+        Syntax stack icon + light/dark tokens, contrast-verified
+      </div>
+    </div>
+    <div class="modes" role="group" aria-label="Theme mode">
+      <button data-m="auto"  aria-pressed="true">Auto</button>
+      <button data-m="light" aria-pressed="false">Light</button>
+      <button data-m="dark"  aria-pressed="false">Dark</button>
+    </div>
+  </div>
+  <p class="modehint" id="hint"></p>
+
+  <section>
+    <div class="callout warn">
+      <h2>One decision before this ships</h2>
+      <p>The chosen icon (<b>2d Syntax stack</b>) is drawn in the <b>ZaWin palette</b> — Swiss blue
+      <code>#0033A0</code> and cyan <code>#00A9E0</code> — because the brainstorm was rendered with the
+      ZaWin design system. The theme tokens below come from <code>docs/mesoneer-design-system.md</code>,
+      whose brand colour is <b>purple <code>#3B2A78</code></b>. So the dock icon reads cyan while the app
+      chrome reads purple.</p>
+      <p style="margin:0"><b>Recommended (what this sheet shows):</b> keep the icon exactly as designed,
+      use mesoneer purple for UI chrome, and promote the icon's token colours to the
+      <b>editor's syntax palette</b> — the cyan then reappears as the caret and keyword colour, which ties
+      icon and app together instead of fighting. Alternatives: re-tint the icon purple, or switch the whole
+      app to the ZaWin blue/cyan palette.</p>
+    </div>
+  </section>
+
+  <section>
+    <h3>App icon — macOS sizes</h3>
+    <div class="card">
+      <div class="strip lightbg" style="margin-bottom:14px">
+        <span class="lbl">Light</span>
+        <svg width="96" height="96" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <svg width="56" height="56" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <svg width="32" height="32" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <svg width="16" height="16" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <span class="dock" style="background:#F0F0F5;margin-left:auto">
+          <svg width="36" height="36" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+          <span class="nm" style="color:#15131E">m<span style="color:#00A9E0">_</span>text</span>
+        </span>
+      </div>
+      <div class="strip darkbg">
+        <span class="lbl">Dark</span>
+        <svg width="96" height="96" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <svg width="56" height="56" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <svg width="32" height="32" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <svg width="16" height="16" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <span class="dock" style="background:#17151F;margin-left:auto">
+          <svg width="36" height="36" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+          <span class="nm" style="color:#F3F2F9">m<span style="color:#00A9E0">_</span>text</span>
+        </span>
+      </div>
+      <p style="margin:14px 0 0;font-size:13px;color:var(--muted)">
+        The icon does <b>not</b> flip with the theme — its dark <code>#1E2939</code> field is fixed, which
+        is why it holds on both dock backgrounds. The blinking caret from the brainstorm is dropped in the
+        static icon (app icons can't animate) and kept in the in-app wordmark.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h3>Theme tokens — verified ≥ 4.5:1</h3>
+    <div class="grid2">
+      <div class="card">
+        <h2 style="margin-bottom:12px">Light</h2>
+        <table class="sw">
+          <tr><th></th><th>Token</th><th>Hex</th><th>Contrast</th></tr>
+          <tr><td><span class="chip" style="background:#F5F5F9"></span></td><td>bg</td><td class="hex">#F5F5F9</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#FFFFFF"></span></td><td>surface</td><td class="hex">#FFFFFF</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#F0F0F5"></span></td><td>surface2</td><td class="hex">#F0F0F5</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#E7E7EF"></span></td><td>border</td><td class="hex">#E7E7EF</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#15131E"></span></td><td>text</td><td class="hex">#15131E</td><td><span class="ok">18.4:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#6D6B7E"></span></td><td>muted</td><td class="hex">#6D6B7E</td><td><span class="ok">5.2:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#3B2A78"></span></td><td>primary / fill</td><td class="hex">#3B2A78</td><td><span class="ok">11.7:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#907ED2"></span></td><td>primaryBright</td><td class="hex">#907ED2</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#141220"></span></td><td>navBg</td><td class="hex">#141220</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#B7B5C6"></span></td><td>navText</td><td class="hex">#B7B5C6</td><td><span class="ok">9.2:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#0F8843"></span></td><td>success <small>↓ from #12A150</small></td><td class="hex">#0F8843</td><td><span class="ok">4.5:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#996F09"></span></td><td>warning <small>↓ from #B4820A</small></td><td class="hex">#996F09</td><td><span class="ok">4.5:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#E12D33"></span></td><td>danger <small>↓ from #E5484D</small></td><td class="hex">#E12D33</td><td><span class="ok">4.5:1</span></td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h2 style="margin-bottom:12px">Dark</h2>
+        <table class="sw">
+          <tr><th></th><th>Token</th><th>Hex</th><th>Contrast</th></tr>
+          <tr><td><span class="chip" style="background:#0D0C13"></span></td><td>bg</td><td class="hex">#0D0C13</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#17151F"></span></td><td>surface</td><td class="hex">#17151F</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#211E2C"></span></td><td>surface2</td><td class="hex">#211E2C</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#2A2837"></span></td><td>border</td><td class="hex">#2A2837</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#F3F2F9"></span></td><td>text</td><td class="hex">#F3F2F9</td><td><span class="ok">16.2:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#9794A8"></span></td><td>muted</td><td class="hex">#9794A8</td><td><span class="ok">6.1:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#7D67C9"></span></td><td>primaryFill <small>white label</small></td><td class="hex">#7D67C9</td><td><span class="ok">4.5:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#8571CD"></span></td><td>primaryAccent <small>on surface</small></td><td class="hex">#8571CD</td><td><span class="ok">4.5:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#B7ABE2"></span></td><td>primaryBright</td><td class="hex">#B7ABE2</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#08070C"></span></td><td>navBg</td><td class="hex">#08070C</td><td></td></tr>
+          <tr><td><span class="chip" style="background:#8B8899"></span></td><td>navText</td><td class="hex">#8B8899</td><td><span class="ok">5.8:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#12A150"></span></td><td>success</td><td class="hex">#12A150</td><td><span class="ok">5.4:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#B4820A"></span></td><td>warning</td><td class="hex">#B4820A</td><td><span class="ok">5.3:1</span></td></tr>
+          <tr><td><span class="chip" style="background:#E5484D"></span></td><td>danger</td><td class="hex">#E5484D</td><td><span class="ok">4.6:1</span></td></tr>
+        </table>
+      </div>
+    </div>
+    <p style="margin-top:14px;font-size:13px;color:var(--muted)">
+      Two adjustments were forced by measurement, not taste. <b>(1)</b> The DS doc's status colours only reach
+      3.4–3.9:1 on white, so light mode darkens them (hue and saturation preserved; dark mode keeps the
+      originals, which pass there). <b>(2)</b> "Primary lightened 30%" for dark mode splits into two tokens: a
+      white label needs the fill <i>darker</i> (<code>#7D67C9</code>) while purple text on a dark surface needs it
+      <i>lighter</i> (<code>#8571CD</code>). One value cannot do both jobs.
+    </p>
+  </section>
+
+  <section>
+    <h3>Syntax palette — from the icon</h3>
+    <div class="card">
+      <p>The icon's token bars are already a syntax theme. They work as-is on dark
+      (6.3–9.4:1) but collapse on a white editor surface — <code>#EFB000</code> yellow is
+      <b>1.9:1</b>, unreadable. Light mode therefore uses darkened counterparts at the same hue.</p>
+      <table class="sw" style="max-width:640px">
+        <tr><th>Role</th><th>Icon / dark</th><th></th><th>Light</th><th></th></tr>
+        <tr><td>keyword · caret</td><td class="hex">#00A9E0</td><td><span class="chip" style="background:#00A9E0"></span></td><td class="hex">#007FA8</td><td><span class="chip" style="background:#007FA8"></span></td></tr>
+        <tr><td>string</td><td class="hex">#00C950</td><td><span class="chip" style="background:#00C950"></span></td><td class="hex">#008937</td><td><span class="chip" style="background:#008937"></span></td></tr>
+        <tr><td>number</td><td class="hex">#EFB000</td><td><span class="chip" style="background:#EFB000"></span></td><td class="hex">#987000</td><td><span class="chip" style="background:#987000"></span></td></tr>
+        <tr><td>function</td><td class="hex">#FF6900</td><td><span class="chip" style="background:#FF6900"></span></td><td class="hex">#C75200</td><td><span class="chip" style="background:#C75200"></span></td></tr>
+        <tr><td>type</td><td class="hex">#955EFF</td><td><span class="chip" style="background:#955EFF"></span></td><td class="hex">#8B4EFF</td><td><span class="chip" style="background:#8B4EFF"></span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h3>In situ — follows the switch above</h3>
+    <div class="editor">
+      <div class="ed-bar">
+        <svg width="18" height="18" viewBox="0 0 1024 1024"><use href="#mt"/></svg>
+        <span class="tab active">main.swift</span>
+        <span class="tab">Theme.swift</span>
+        <span style="margin-left:auto;font-size:12px;color:var(--muted)">UTF-8 · Swift · Ln 6, Col 24</span>
+      </div>
+      <div class="side">
+        <div class="navdemo">
+          <div class="it on">Editor</div>
+          <div class="it">Format</div>
+          <div class="it">Convert</div>
+          <div class="it">Inspect</div>
+        </div>
+        <div class="ed-body" style="flex:1">
+          <div class="gutter">1<br>2<br>3<br>4<br>5<br>6<br>7</div>
+          <div class="code"><span class="c">// m_text — theme resolution</span>
+<span class="k">enum</span> <span class="t">Appearance</span>: <span class="t">String</span> {
+    <span class="k">case</span> system, light, dark
+}
+<span class="k">let</span> mode = <span class="t">Appearance</span>(rawValue: <span class="s">"system"</span>)
+<span class="k">let</span> radius = <span class="n">9.0</span>
+<span class="k">let</span> resolved = <span class="f">resolve</span>(<span class="sel">mode, against: .current</span>)<span class="caret"></span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>Implementing auto + manual</h3>
+    <div class="card">
+      <p>Three states, not two — <code>system</code> (default), <code>light</code>, <code>dark</code> —
+      persisted as a user preference. The mistake to avoid is storing a boolean <code>isDark</code>: it
+      cannot express "follow the OS" and the app stops reacting when the user flips appearance at lunchtime.</p>
+      <ul class="tight">
+        <li><b>SwiftUI / AppKit:</b> persist the enum in <code>UserDefaults</code>; apply by setting
+        <code>NSApp.appearance</code> to <code>nil</code> for system, or <code>.aqua</code> /
+        <code>.darkAqua</code> when forced. Read colours through a token type backed by
+        <code>NSColor(name:dynamicProvider:)</code> so the OS resolves them per appearance — a plain
+        <code>if isDark</code> lookup will not refresh when the system flips.</li>
+        <li><b>Web / Angular:</b> exactly the CSS in this file's <code>&lt;style&gt;</code> — set
+        <code>data-theme</code> on the root element, let <code>@media (prefers-color-scheme: dark)</code>
+        handle the <code>auto</code> case, and persist the choice.</li>
+        <li>Ship both modes with the same token <i>names</i>; only values differ. No component should
+        branch on the mode.</li>
+      </ul>
+      <p style="margin:0;font-size:13px;color:var(--muted)">Manrope is the brand typeface and is not a
+      macOS system font — bundle the <code>.ttf</code>s (SIL OFL) or the app silently falls back to the
+      system font, which loses a lot of the brand feel. This sheet is showing you that fallback right now.</p>
+    </div>
+  </section>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+    <symbol id="mt" viewBox="0 0 1024 1024">
+      <rect width="1024" height="1024" rx="224" fill="#1E2939"/>
+      <rect x="196" y="272" width="120" height="58" rx="29" fill="#00A9E0"/>
+      <rect x="340" y="272" width="230" height="58" rx="29" fill="#F9FAFC" opacity=".85"/>
+      <rect x="264" y="386" width="180" height="58" rx="29" fill="#00C950"/>
+      <rect x="468" y="386" width="140" height="58" rx="29" fill="#EFB000"/>
+      <rect x="264" y="500" width="120" height="58" rx="29" fill="#FF6900"/>
+      <rect x="408" y="500" width="270" height="58" rx="29" fill="#F9FAFC" opacity=".55"/>
+      <rect x="196" y="614" width="200" height="58" rx="29" fill="#8D51FF"/>
+      <rect x="732" y="600" width="56" height="112" rx="12" fill="#00A9E0"/>
+    </symbol>
+  </defs></svg>
+</div>
+
+<script>
+  // In-memory only (no storage APIs here); the real app persists this to UserDefaults / localStorage.
+  var mode = 'auto';
+  var mq = window.matchMedia('(prefers-color-scheme: dark)');
+  function render() {
+    document.documentElement.setAttribute('data-theme', mode);
+    document.querySelectorAll('.modes button').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.dataset.m === mode));
+    });
+    var os = mq.matches ? 'dark' : 'light';
+    document.getElementById('hint').textContent =
+      mode === 'auto'
+        ? 'Auto — following this machine, currently ' + os + '. Change your OS appearance and this sheet flips with it.'
+        : 'Manually forced ' + mode + ' — the OS is set to ' + os + ', and is being overridden.';
+  }
+  document.querySelectorAll('.modes button').forEach(function (b) {
+    b.addEventListener('click', function () { mode = b.dataset.m; render(); });
+  });
+  mq.addEventListener('change', render);
+  render();
+</script>
+</body>
+</html>

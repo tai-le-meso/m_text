@@ -323,6 +323,9 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     }
 
     public override var isFlipped: Bool { true }
+    /// Shaped lines currently cached, for `MTEXT_SMOKE_TEST` (see `LayoutCache`).
+    var smokeTestCachedLineCount: Int { layout.smokeTestCachedLineCount }
+
     public override var acceptsFirstResponder: Bool { true }
     public override var isOpaque: Bool { true }
 

@@ -24,6 +24,7 @@ var suites: [TestSuite] = [
     ProjectTests.suite,
     SessionTests.suite,
     SettingsTests.suite,
+    BrandThemeTests.suite,
     CompletionTests.suite,
     SnippetTests.suite,
     FoldingTests.suite,
