@@ -19,6 +19,8 @@ you will arrive: something looks wrong on screen and you don't yet know why.
 | ⌘F always opens on the same side regardless of which pane you're in | ⌘F trusted the stored focus index, not the editor that received it | [S3](#s3) |
 | Text sits in a thin strip at the top; clicking below it does nothing | Document view frame collapsed to content size | [S4](#s4) |
 | Typing does nothing at all, every file, but menus/clicks/scroll still work | Delivery or focus, not handling — the smoke test **cannot** see this | [playbook 6](#playbook-6) |
+| Window blank — editor, gutter **and** tab bar — but title and status line update | A zero-width sibling's unclipped layer painting over the pane | [S6](#s6) |
+| Drawing looks correct in every trace but nothing appears | Dump the **layer** tree, not the view tree | [S6](#s6) |
 | "Can't edit or do anything" — window fine, not crashed, but typing barely registers; only in big files | A full-buffer scan running on every keystroke | [S5](#s5) |
 | Any pane/divider/sizing weirdness after adding a split | `NSSplitView` never lays out a newly added subview | [P1](#p1) |
 | A "fix" that changes focus appears to do nothing at all | `dismissFind()` steals first responder back | [P2](#p2) |
@@ -303,6 +305,58 @@ unfixed code (1.8 s vs one 0.09 s scan; 160 ms/key).
 these, and it took one run each. The remaining per-keystroke cost is the minimap (~5 ms
 release), which redraws in full; that is the next thing to look at if this budget starts
 being tight.
+
+---
+
+<a id="s6"></a>
+### S6 — Whole window renders blank: editor, gutter and tab bar, while the status line works
+
+**Symptom.** The window opens and is completely empty — no text, no gutter, no tab bar —
+but the title bar and the status line (`Line 1, Column 60 · 1 lines`) update correctly.
+Typing changes nothing on screen. Reported as "can't create new tabs and can't enter any
+text — no display or interaction at all".
+
+**It is not an input bug.** `MTEXT_INPUT_DEBUG=1` showed the entire keyboard path healthy:
+events delivered, window key, first responder the editor, `keyDown` reached, `insertText`
+run, and `document.generation` moving on every keystroke. ⌘T created tabs too. The model was
+always correct; only the screen was wrong.
+
+**Root cause — `CALayer` does not clip its sublayers unless told to.** T93's minimap is
+collapsed to zero width by a width constraint when it is off, rather than removed. A
+zero-width *view* still has a backing layer, and AppKit's backing store kept a full-size
+`ContentLayer` for it. Unclipped, that layer was composited at an offset covering the entire
+pane **and 32pt above it — exactly the tab bar**:
+
+```
+Minimap      (1263, 0,   0, 727)  has-contents ZERO-SIZE   <- the view, correctly collapsed
+  ContentLayer (-1263, -32, 1263, 759) has-contents        <- painted over the whole pane
+```
+
+**Fix.** `layer?.masksToBounds = true` in `Minimap.init` — that is the real fix. The view is
+also now `isHidden` when disabled rather than merely zero-width, since a zero-width view
+still draws.
+
+**Why it took so long, and what to do differently.** Every view-level signal was healthy and
+stayed healthy throughout: frames correct, exactly one tab container visible and correctly
+sized, `draw(_:)` running with the right dirty rects, the cached line text matching the
+document, `#FFFFFF` glyphs on `#1E1E1E`, `wantsLayer` with opacity 1 and nothing hidden — and
+the editor's own rasterised layer contained 56 distinct colours, i.e. real antialiased text.
+**The editor was drawing perfectly and something else was painting over it.** No amount of
+inspecting views could show that; only the *layer* tree could, and dumping it found the fault
+immediately.
+
+So: **when drawing looks correct but nothing appears, dump the layer tree, not the view
+tree** (`MTEXT_RENDER_DUMP=1`). And when a sibling view is involved, suspect an unclipped
+layer before suspecting the view that looks blank.
+
+**Regression check.** `smokeTestLayerEscapingItsView()` fails if any of this project's own
+views has an unclipped sublayer with contents outside its bounds. Verified to fail against
+the unfixed code with the exact frames above. It is scoped to non-`NS` classes deliberately:
+AppKit's own controls legitimately overflow (a label's content layer carries ascenders).
+
+**What found it.** Bisecting with the user as the oracle — pre-T28 build vs T28 vs T93 —
+because no local instrument could reproduce a blank screen. Three builds, two rounds, exact
+commit. That was worth far more than any further code reading.
 
 ---
 

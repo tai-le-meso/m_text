@@ -92,6 +92,8 @@ public enum InputDiagnostics {
                 print("[render] view tree (frame / hidden / alpha):")
                 dumpTree(content, depth: 0)
                 reportEditorInk(content)
+                print("[render] layer tree (frame / contents / opacity / masksToBounds):")
+                dumpLayers(content.layer, depth: 0)
             } catch {
                 print("[render] could not write \(path): \(error)")
             }
@@ -203,6 +205,22 @@ public enum InputDiagnostics {
             view.subviews.forEach(walk)
         }
         walk(root)
+    }
+
+    /// The view tree can be perfectly correct while nothing reaches the screen: what the
+    /// compositor shows is the *layer* tree. A layer with no `contents`, zero opacity, or a
+    /// degenerate frame renders nothing no matter how healthy `draw(_:)` looked.
+    static func dumpLayers(_ layer: CALayer?, depth: Int) {
+        guard let layer, depth < 8 else { return }
+        let pad = String(repeating: "  ", count: depth)
+        let f = layer.frame.integral
+        let flags = [layer.isHidden ? "HIDDEN" : nil,
+                     layer.opacity < 0.99 ? "opacity=\(layer.opacity)" : nil,
+                     layer.contents == nil ? "no-contents" : "has-contents",
+                     f.width < 1 || f.height < 1 ? "ZERO-SIZE" : nil]
+            .compactMap { $0 }.joined(separator: " ")
+        print("[render] \(pad)\(type(of: layer)) \(f) scale=\(layer.contentsScale) \(flags)")
+        for sub in layer.sublayers ?? [] { dumpLayers(sub, depth: depth + 1) }
     }
 
     /// A blank pane is almost always geometry: a view collapsed to zero, hidden, or covered.

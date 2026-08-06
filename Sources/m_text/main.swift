@@ -531,7 +531,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       + "unwrapped \(longUnwrapped), wrapped \(longWrapped))")
             }
 
+            /// No view may paint outside itself. The blank-window bug was exactly this: the
+            /// minimap, collapsed to zero width, kept a full-size unclipped backing layer
+            /// that covered the editor and the tab bar. Every view-level check passed while
+            /// it happened, so this is the one that has to exist.
+            func layerContainmentCheck(_ when: String) {
+                let escaping = controller.smokeTestLayerEscapingItsView()
+                check(escaping == nil, "no layer paints outside its view \(when)"
+                      + (escaping.map { " — \($0)" } ?? ""))
+            }
+
             run([
+                { layerContainmentCheck("at launch") },
                 { renderCheck() },
                 { tabVisibilityCheck("on the restored session") },
                 { newTabCheck() },

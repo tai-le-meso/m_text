@@ -30,6 +30,13 @@ final class Minimap: NSView {
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
+        // **A CALayer does not clip its sublayers unless told to.** Turned off, the strip is
+        // collapsed to zero width by its width constraint — but AppKit's backing store keeps
+        // a full-size content layer, which without this masking is drawn at an offset that
+        // covers the entire pane *and* the tab bar above it. The window then renders blank
+        // while every view frame, every `draw(_:)` call and the editor's own rasterised
+        // layer all look perfectly healthy. See `KNOWLEDGE.md`, S6.
+        layer?.masksToBounds = true
     }
 
     required init?(coder: NSCoder) { fatalError("not used") }

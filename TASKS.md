@@ -711,6 +711,15 @@ rather than one per character; at 1pt per column that would be thousands of fill
 for the same result. Lines whose spans haven't arrived yet fall back to a dimmed foreground
 colour, so the strip is never blank while the background sweep catches up.
 
+⚠️ **The minimap once rendered the entire window blank** — editor, gutter and tab bar — while
+the title bar and status line kept updating. Collapsing the strip to zero width leaves a
+zero-width *view* that still has a backing layer, and `CALayer` does not clip sublayers
+unless told to, so AppKit's full-size `ContentLayer` for it was composited over the whole
+pane and 32pt above it (exactly the tab bar). `Minimap.init` now sets
+`layer?.masksToBounds = true`, and the view is hidden when disabled rather than merely
+collapsed. Full post-mortem in `KNOWLEDGE.md` S6 — read it before changing how the strip is
+shown or hidden.
+
 It renders **rows via the editor's `RowMap`**, not document lines. A minimap that disagreed
 with what folding and wrapping put on screen would be worse than none: dragging it would land
 somewhere other than where it pointed. Wrapped lines therefore read as several rows and

@@ -52,7 +52,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T91 Snippets | ✅ (only typing/backspace keep a session alive — see TASKS.md) |
 | T92 Code folding | ✅ (folds not persisted in the session — see TASKS.md) |
 | T28 Word wrap | ✅ (no indented continuation rows — see TASKS.md) |
-| T93 Minimap | ✅ (compresses rather than scrolls on large files — see TASKS.md) |
+| T93 Minimap | ✅ (its unclipped layer once blanked the whole window — `KNOWLEDGE.md` S6) |
 | T94 Macros | ✅ (replay is not a single undo step — see TASKS.md) |
 | T95 Build systems | ✅ (diagnostics parsed at exit, not streamed — see TASKS.md) |
 | T63 Find in Files | ✅ engine |
@@ -177,10 +177,20 @@ who holds first responder, whether `EditorView.keyDown` ran, whether the keymap 
 and whether `insertText` moved the document generation. Unlike `LayoutDiagnostics` it *does*
 have call sites — all `guard isEnabled` one-liners.
 
+`MTEXT_RENDER_DUMP=/tmp/x.png` — writes a PNG of the window plus a **view tree** and a
+**layer tree** (frames, hidden/zero-size flags, layer contents, opacity, `masksToBounds`).
+The layer tree is what found S6, after every view-level signal had come back healthy.
+
 ⚠️ **The smoke test cannot see a "typing does nothing" bug.** A terminal-launched process is
 never frontmost, so macOS refuses its window key status and never routes real key events to
 it; the harness injects `NSEvent`s directly, which tests handling, not delivery. Use the
 input trace for anything in that class — see `KNOWLEDGE.md` playbook §6.
+
+⚠️ **Do not trust the PNG the app takes of itself** (`cacheDisplay`) as evidence of what is
+on screen — on this layer-backed tree the same build produced an all-white, a partial, a
+fully transparent and an all-black snapshot within minutes. It is fine as a *relative*
+assertion inside one smoke run. For "what does the user actually see", ask for a screenshot,
+and to find *why*, dump the layer tree. See `KNOWLEDGE.md` playbook §7 and S6.
 
 ## Other known issues / gaps
 
