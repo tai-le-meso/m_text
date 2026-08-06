@@ -476,8 +476,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
 
+            /// What you *see* must be the tab the controller routes keys to. Every tab's
+            /// container is stacked in the same place with the same constraints, so if two
+            /// are un-hidden the topmost one wins the screen while typing goes to the active
+            /// one — the document changes and the display does not, which is precisely the
+            /// reported symptom. Checked on the restored session, which carries ten tabs.
+            func tabVisibilityCheck(_ when: String) {
+                let visible = controller.smokeTestVisibleContainerCount
+                check(visible == 1, "exactly one tab container is visible \(when) (got \(visible))")
+                check(controller.smokeTestActiveContainerIsVisible,
+                      "and it is the active tab's \(when)")
+            }
+
             run([
+                { tabVisibilityCheck("on the restored session") },
                 { newTabCheck() },
+                { tabVisibilityCheck("after creating tabs") },
                 { controller.splitViewRight(nil) },
                 { typingCheck() },
                 { typingLatencyCheck() },

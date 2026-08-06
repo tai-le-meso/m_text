@@ -66,6 +66,10 @@ public final class MainWindowController: NSWindowController {
     /// the *controller's* notion of the active tab, so a check cannot accidentally measure
     /// a different tab's editor than the one it is driving.
     public var smokeTestTabCount: Int { focusedPane.tabs.count }
+    /// How many of the focused pane's tab containers are visible. Must be exactly one — see
+    /// `Pane.visibleContainerCount` for why more than one is invisible-but-fatal.
+    public var smokeTestVisibleContainerCount: Int { focusedPane.visibleContainerCount }
+    public var smokeTestActiveContainerIsVisible: Bool { focusedPane.activeContainerIsVisible }
     public var smokeTestActiveEditorIsUsable: Bool {
         editor.window != nil
             && !editor.isHiddenOrHasHiddenAncestor

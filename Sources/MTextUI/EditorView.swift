@@ -713,15 +713,24 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     // MARK: - Drawing
 
     public override func draw(_ dirtyRect: NSRect) {
-        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        InputDiagnostics.log("""
+              -> draw dirty=\(dirtyRect.integral) bounds=\(bounds.integral) \
+            lines=\(document.lineCount) rows=\(rowMap.totalRows) lineHeight=\(lineHeight)
+            """)
+        guard let context = NSGraphicsContext.current?.cgContext else {
+            InputDiagnostics.log("     ** no graphics context — nothing drawn **")
+            return
+        }
 
         themeBackground.setFill()
         dirtyRect.fill()
 
         guard let visible = visibleRows(in: dirtyRect) else {
+            InputDiagnostics.log("     ** visibleRows returned nil — only the gutter is drawn **")
             drawGutter(in: dirtyRect, context: context, lines: nil)
             return
         }
+        InputDiagnostics.log("     drawing \(visible.rows.count) rows")
 
         drawCurrentLineHighlight(visible)
         drawRulers(dirtyRect)

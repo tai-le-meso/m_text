@@ -148,6 +148,13 @@ final class Pane {
         for candidate in tabs { candidate.container.isHidden = (candidate !== tab) }
     }
 
+    /// Every tab's container is stacked in `editorContainer` with identical constraints, so
+    /// only `isHidden` decides what you see. If two are visible you see whichever is topmost
+    /// in subview order, which need not be the tab the controller is routing keys to — the
+    /// document then changes while the screen does not.
+    var visibleContainerCount: Int { tabs.filter { !$0.container.isHidden }.count }
+    var activeContainerIsVisible: Bool { activeTab.map { !$0.container.isHidden } ?? false }
+
     func refreshTabBar() {
         tabBar.items = tabs.map { TabBar.Item(title: $0.title, isDirty: $0.isDirty) }
         tabBar.selectedIndex = activeIndex
