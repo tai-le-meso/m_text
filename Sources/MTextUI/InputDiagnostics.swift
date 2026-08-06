@@ -160,6 +160,28 @@ public enum InputDiagnostics {
                 else { print("[render] editor: could not capture"); return }
                 view.display()
                 view.cacheDisplay(in: rect, to: rep)
+                // Also read the layer directly. `cacheDisplay` re-runs `draw(_:)` into a
+                // fresh bitmap, which says what the view *would* paint; `layer.render(in:)`
+                // reads what was actually rasterised and handed to the compositor. When the
+                // two disagree, the drawing is fine and the presentation is not.
+                if let layer = view.layer,
+                   let space = CGColorSpace(name: CGColorSpace.sRGB),
+                   let ctx = CGContext(data: nil, width: Int(rect.width), height: Int(rect.height),
+                                       bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+                    layer.render(in: ctx)
+                    if let image = ctx.makeImage(),
+                       let pixels = ctx.data?.assumingMemoryBound(to: UInt8.self) {
+                        var distinct = Set<UInt32>()
+                        for i in stride(from: 0, to: image.width * image.height * 4, by: 4 * 37) {
+                            distinct.insert(UInt32(pixels[i]) << 16
+                                            | UInt32(pixels[i + 1]) << 8 | UInt32(pixels[i + 2]))
+                        }
+                        print("[render] editor LAYER: \(distinct.count) distinct colours sampled"
+                              + (distinct.count <= 1 ? "   ** LAYER IS UNIFORM — nothing rasterised **" : ""))
+                    }
+                }
+
                 guard let data = rep.bitmapData else { return }
                 let bpr = rep.bytesPerRow, bpp = rep.bitsPerPixel / 8
                 let hasAlpha = rep.hasAlpha

@@ -742,7 +742,14 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
             drawGutter(in: dirtyRect, context: context, lines: nil)
             return
         }
-        InputDiagnostics.log("     drawing \(visible.rows.count) rows")
+        InputDiagnostics.log("""
+                 drawing \(visible.rows.count) rows | flipped=\(isFlipped) \
+            rowTop(0)=\(rowTop(0)) baselineOffset=\(baselineOffset) \
+            textOriginX=\(textOriginX) gutterWidth=\(gutterWidth) charWidth=\(charWidth) \
+            showsGutter=\(showsGutter) wantsLayer=\(wantsLayer) \
+            layerOpacity=\(layer?.opacity ?? -1) layerHidden=\(layer?.isHidden ?? false) \
+            alpha=\(alphaValue) hiddenAncestor=\(isHiddenOrHasHiddenAncestor)
+            """)
 
         drawCurrentLineHighlight(visible)
         drawRulers(dirtyRect)
@@ -820,6 +827,19 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
             let entry = cachedLine(row.line)
             if InputDiagnostics.isEnabled {
                 let live = document.line(row.line)
+                // The colour that actually paints the glyphs lives in the CTLine's run
+                // attributes, not in the scheme globals logged at the top of `draw`.
+                var runColor = "none"
+                if let runs = CTLineGetGlyphRuns(entry.ctLine) as? [CTRun], let first = runs.first {
+                    let attrs = CTRunGetAttributes(first) as NSDictionary
+                    if let cg = attrs[kCTForegroundColorAttributeName] as! CGColor?,
+                       let c = NSColor(cgColor: cg)?.usingColorSpace(.deviceRGB) {
+                        runColor = String(format: "#%02X%02X%02X a=%.2f",
+                                          Int(c.redComponent * 255), Int(c.greenComponent * 255),
+                                          Int(c.blueComponent * 255), c.alphaComponent)
+                    }
+                    InputDiagnostics.log("     runs=\(runs.count) glyphRunColor=\(runColor)")
+                }
                 InputDiagnostics.log("""
                          row line=\(row.line) cached=\(String(reflecting: String(entry.text.prefix(30)))) \
                     document=\(String(reflecting: String(live.prefix(30))))\
