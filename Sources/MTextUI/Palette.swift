@@ -29,6 +29,24 @@ public struct PaletteItem {
 /// than docked chrome, since Sublime's palette overlays the whole window rather than
 /// occupying permanent layout space — there is no existing borderless-panel precedent
 /// in this codebase, so this is the first one.
+/// The palette's window.
+///
+/// **A borderless window cannot become key unless it says so.** `NSWindow.canBecomeKey`
+/// returns false for anything without a title bar, and that is inherited unchanged by a
+/// borderless `NSPanel`. The panel then shows, positions and draws perfectly — its search
+/// field even reports focus, because `makeFirstResponder` succeeds within a non-key window —
+/// while every keystroke goes somewhere else entirely. The palette opens and simply refuses
+/// to search.
+///
+/// This is the entire fix, and it is why the smoke test asserts `canBecomeKey` rather than
+/// only "the palette appeared".
+final class PalettePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    /// Key, but never *main*: the document window behind it stays the main window, so its
+    /// title bar keeps its active appearance while the palette is up.
+    override var canBecomeMain: Bool { false }
+}
+
 public final class Palette: NSObject, NSTextFieldDelegate, NSTableViewDataSource, NSTableViewDelegate {
 
     /// Called on every keystroke in the search field. The owner is expected to respond
@@ -51,6 +69,23 @@ public final class Palette: NSObject, NSTextFieldDelegate, NSTableViewDataSource
     private let emptyLabel: NSTextField
 
     private var items: [PaletteItem] = []
+
+    // MARK: - Smoke-test hooks
+
+    /// What the palette's field currently holds, how many rows it is offering, and whether
+    /// its panel can actually take keyboard focus. A palette that shows but cannot become
+    /// key swallows every keystroke — see `MTEXT_SMOKE_TEST`.
+    public var smokeTestQuery: String { searchField.stringValue }
+    public var smokeTestItemCount: Int { items.count }
+    public var smokeTestPanelCanBecomeKey: Bool { panel.canBecomeKey }
+    public var smokeTestPanelIsKey: Bool { panel.isKeyWindow }
+    public var smokeTestFieldHasFocus: Bool {
+        guard let responder = panel.firstResponder else { return false }
+        // A focused NSTextField is edited by the window's shared field editor, whose delegate
+        // is the field itself — the responder is never the NSTextField object.
+        if responder === searchField { return true }
+        return (responder as? NSTextView)?.delegate === searchField
+    }
     private var isShowing = false
 
     private static let rowHeight: CGFloat = 22
@@ -60,10 +95,10 @@ public final class Palette: NSObject, NSTextFieldDelegate, NSTableViewDataSource
 
     public override init() {
         let contentRect = NSRect(x: 0, y: 0, width: Palette.panelWidth, height: 60)
-        panel = NSPanel(contentRect: contentRect,
-                        styleMask: [.borderless, .fullSizeContentView],
-                        backing: .buffered,
-                        defer: false)
+        panel = PalettePanel(contentRect: contentRect,
+                             styleMask: [.borderless, .fullSizeContentView],
+                             backing: .buffered,
+                             defer: false)
         panel.isOpaque = false
         panel.backgroundColor = .clear
         panel.hasShadow = true

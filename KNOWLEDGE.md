@@ -18,6 +18,7 @@ you will arrive: something looks wrong on screen and you don't yet know why.
 | Find bar is on one side but searches/highlights the other; match count belongs to neither | `focusedPaneIndex` out of step with real focus | [S3](#s3) |
 | ⌘F always opens on the same side regardless of which pane you're in | ⌘F trusted the stored focus index, not the editor that received it | [S3](#s3) |
 | Text sits in a thin strip at the top; clicking below it does nothing | Document view frame collapsed to content size | [S4](#s4) |
+| A palette/panel opens and looks right but typing never reaches it | Borderless window: `canBecomeKey` is false unless overridden | [S7](#s7) |
 | Typing does nothing at all, every file, but menus/clicks/scroll still work | Delivery or focus, not handling — the smoke test **cannot** see this | [playbook 6](#playbook-6) |
 | Window blank — editor, gutter **and** tab bar — but title and status line update | A zero-width sibling's unclipped layer painting over the pane | [S6](#s6) |
 | Drawing looks correct in every trace but nothing appears | Dump the **layer** tree, not the view tree | [S6](#s6) |
@@ -357,6 +358,37 @@ AppKit's own controls legitimately overflow (a label's content layer carries asc
 **What found it.** Bisecting with the user as the oracle — pre-T28 build vs T28 vs T93 —
 because no local instrument could reproduce a blank screen. Three builds, two rounds, exact
 commit. That was worth far more than any further code reading.
+
+---
+
+<a id="s7"></a>
+### S7 — Command Palette (and Goto Anything) open but never search
+
+**Symptom.** ⌘⇧P / ⌘P show the palette, correctly positioned and populated with every
+command, and typing does nothing: the field stays empty and the list never filters.
+
+**Root cause.** `Palette` built its window as a plain `NSPanel` with a `.borderless` style
+mask. **`NSWindow.canBecomeKey` is false for a window with no title bar**, and a borderless
+`NSPanel` inherits that unchanged — measured `canBecomeKey == false`. A non-key window is
+never sent key events, so the keystrokes went to whatever was key instead.
+
+What makes this hard to spot: everything else looks healthy. The panel orders front, draws,
+positions itself, lists 117 commands — and `panel.makeFirstResponder(searchField)` *succeeds*,
+so the field genuinely reports focus. Focus within a window that cannot become key still
+receives nothing.
+
+**Fix.** A `PalettePanel: NSPanel` subclass overriding `canBecomeKey` to `true` (and
+`canBecomeMain` to `false`, so the document window keeps its active title bar). One override;
+both ⌘P and ⌘⇧P share the single `Palette` instance.
+
+**Not to be confused with `CompletionPopup`**, which is also a borderless panel and must
+*stay* unable to take focus — it uses `.nonactivatingPanel` deliberately so the editor keeps
+looking and behaving focused while the list is up. Autocomplete keys are handled in
+`EditorView.doCommand`, not by the popup.
+
+**Present since the initial commit.** It survived because nothing tested typing into anything
+but an editor. The smoke test now asserts `canBecomeKey`, that the field takes focus, that a
+real key event reaches it, and that the list actually narrows (117 → 3 for "appear").
 
 ---
 

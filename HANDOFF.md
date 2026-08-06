@@ -118,6 +118,10 @@ and known gaps — read that for the task you're touching rather than re-derivin
   (generation-cached marks, gutter bars, Revert Hunk).
 - **T101** spell check: `SpellCheckScopes.swift` (which ranges are eligible),
   `EditorView+SpellCheck.swift` (`NSSpellChecker`, cached per line, squiggles, F6/⌃F6).
+- **Command Palette / Goto Anything could never be typed into** — a borderless
+  `NSPanel` cannot become key, so ⌘P and ⌘⇧P listed everything and ignored every
+  keystroke. Present since the initial commit; fixed by `PalettePanel`
+  (`KNOWLEDGE.md` S7).
 - **Branding**: `BrandTheme.swift` (light/dark tokens + WCAG contrast, asserted in
   `BrandThemeTests`), `ColorScheme.brand(_:)`, `AppearanceController` (three-state
   system/light/dark, live OS-flip handling), View ▸ Appearance, and the "Syntax stack"

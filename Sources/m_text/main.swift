@@ -633,8 +633,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "in both directions (got \(controller.smokeTestAppearanceControlTitle))")
             }
 
+            /// Typing into the Command Palette has to filter it. Reported as the palette
+            /// opening but not searching — and nothing here had ever sent a keystroke to
+            /// anything other than an editor, so a panel that shows correctly while
+            /// swallowing every key was invisible to the whole suite.
+            func commandPaletteTypingCheck() {
+                controller.showCommandPalette(nil)
+                let palette = controller.smokeTestPalette
+                let all = palette.smokeTestItemCount
+                check(all > 10, "the palette lists the menu's commands (got \(all))")
+                // A borderless panel that cannot become key never receives a keystroke.
+                check(palette.smokeTestPanelCanBecomeKey, "its panel can become key")
+                check(palette.smokeTestFieldHasFocus, "and its search field holds focus")
+
+                for character in "appear" {
+                    guard let event = NSEvent.keyEvent(
+                        with: .keyDown, location: .zero, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime,
+                        windowNumber: 0, context: nil,
+                        characters: String(character),
+                        charactersIgnoringModifiers: String(character),
+                        isARepeat: false, keyCode: 0)
+                    else { return }
+                    NSApp.sendEvent(event)
+                }
+                check(palette.smokeTestQuery == "appear",
+                      "typing reaches the field (got \(String(reflecting: palette.smokeTestQuery)))")
+                let filtered = palette.smokeTestItemCount
+                check(filtered > 0 && filtered < all,
+                      "and filters the list (\(all) -> \(filtered))")
+
+                // Put focus back. Now that the panel genuinely takes key status, leaving it
+                // open would starve every later check of keystrokes — which is itself proof
+                // the fix works.
+                palette.dismiss()
+                window.makeKeyAndOrderFront(nil)
+                controller.smokeTestFocusEditor()
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { commandPaletteTypingCheck() },
                 { appearanceMenuCheck() },
                 { appearanceCheck() },
                 { renderCheck() },

@@ -207,6 +207,9 @@ public final class MainWindowController: NSWindowController {
         editor.display()
     }
 
+    /// The command palette, for `MTEXT_SMOKE_TEST`.
+    public var smokeTestPalette: Palette { overlayPalette }
+
     public var smokeTestTabCount: Int { focusedPane.tabs.count }
     /// How many of the focused pane's tab containers are visible. Must be exactly one — see
     /// `Pane.visibleContainerCount` for why more than one is invisible-but-fatal.
