@@ -439,7 +439,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       String(format: "typing stays responsive in a 20k-line file (%.1f ms/key)", perKey))
             }
 
+            /// ⌘T, then typing into what it produced. Reported as "can't create new tabs and
+            /// can't enter any text" — and nothing here covered tab creation at all, only
+            /// tabs that already existed. Runs several times because the restored session
+            /// carries ten tabs, so anything that degrades as the tab bar fills up (the bar
+            /// scrolling, a container not being installed) shows up as a later iteration
+            /// failing rather than the first.
+            func newTabCheck() {
+                for round in 1...4 {
+                    let before = controller.smokeTestTabCount
+                    controller.newTab(nil)
+                    let after = controller.smokeTestTabCount
+                    check(after == before + 1,
+                          "⌘T adds a tab, round \(round) (\(before) -> \(after))")
+
+                    controller.window?.layoutIfNeeded()
+                    check(controller.smokeTestActiveEditorIsUsable,
+                          "the new tab's editor is on screen and usable, round \(round) "
+                          + "(\(controller.smokeTestActiveEditorVisibleRect))")
+
+                    // The new tab must be the one that receives typing — a tab that is added
+                    // but not activated looks identical to one that was never created.
+                    controller.smokeTestFocusEditor()
+                    controller.smokeTestEditorText = ""
+                    guard let event = NSEvent.keyEvent(
+                        with: .keyDown, location: .zero, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime,
+                        windowNumber: window.windowNumber, context: nil,
+                        characters: "q", charactersIgnoringModifiers: "q",
+                        isARepeat: false, keyCode: 12)
+                    else { return }
+                    NSApp.sendEvent(event)
+                    check(controller.smokeTestEditorText == "q",
+                          "typing lands in the newly created tab, round \(round) "
+                          + "(got \(String(reflecting: controller.smokeTestEditorText)))")
+                }
+            }
+
             run([
+                { newTabCheck() },
                 { controller.splitViewRight(nil) },
                 { typingCheck() },
                 { typingLatencyCheck() },

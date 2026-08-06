@@ -62,6 +62,18 @@ public final class MainWindowController: NSWindowController {
     /// holds first responder rather than assuming.
     public var smokeTestFocusedEditor: NSView { editor }
 
+    /// Tab-bar state for `MTEXT_SMOKE_TEST`. The active editor's geometry is reported from
+    /// the *controller's* notion of the active tab, so a check cannot accidentally measure
+    /// a different tab's editor than the one it is driving.
+    public var smokeTestTabCount: Int { focusedPane.tabs.count }
+    public var smokeTestActiveEditorIsUsable: Bool {
+        editor.window != nil
+            && !editor.isHiddenOrHasHiddenAncestor
+            && editor.visibleRect.width > 50
+            && editor.visibleRect.height > 20
+    }
+    public var smokeTestActiveEditorVisibleRect: CGRect { editor.visibleRect }
+
     /// Focuses the editor the other hooks drive, and reports whether it actually took
     /// first responder. Typing checks have to send events at the *window*, so they need
     /// both halves to be the same editor — see `smokeTestEditorHeight` on why the view
