@@ -239,6 +239,22 @@ private func viewMenu() -> NSMenu {
     menu.addItem(item("Command Palette…", #selector(MainWindowController.showCommandPalette(_:)),
                       "p", [.command, .shift]))
     menu.addItem(.separator())
+    // Three states rather than a "Dark Mode" toggle: "follow the system" is a real choice,
+    // and a checkbox cannot express it (see `AppearancePreference`).
+    let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
+    let appearanceMenu = NSMenu(title: "Appearance")
+    appearanceMenu.delegate = AppearanceMenuController.shared
+    for preference in AppearancePreference.allCases {
+        let item = NSMenuItem(title: preference.displayName,
+                              action: #selector(AppearanceMenuController.selectAppearance(_:)),
+                              keyEquivalent: "")
+        item.target = AppearanceMenuController.shared
+        item.representedObject = preference.rawValue
+        appearanceMenu.addItem(item)
+    }
+    appearanceItem.submenu = appearanceMenu
+    menu.addItem(appearanceItem)
+    menu.addItem(.separator())
     // No keyEquivalent here: the real shortcut is the ⌘K ⌘B *chord* bound in
     // DefaultKeymap.swift — a two-key sequence, which a plain NSMenuItem keyEquivalent
     // can't express at all (only a single keystroke-with-modifiers).
@@ -278,22 +294,6 @@ private func viewMenu() -> NSMenu {
     // T93. No key equivalent — Sublime doesn't bind one either; it lives in the menu and
     // therefore the Command Palette.
     menu.addItem(withTitle: "Minimap", action: #selector(EditorView.toggleMinimap(_:)), keyEquivalent: "")
-    menu.addItem(.separator())
-    // Three states rather than a "Dark Mode" toggle: "follow the system" is a real choice,
-    // and a checkbox cannot express it (see `AppearancePreference`).
-    let appearanceItem = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
-    let appearanceMenu = NSMenu(title: "Appearance")
-    appearanceMenu.delegate = AppearanceMenuController.shared
-    for preference in AppearancePreference.allCases {
-        let item = NSMenuItem(title: preference.displayName,
-                              action: #selector(AppearanceMenuController.selectAppearance(_:)),
-                              keyEquivalent: "")
-        item.target = AppearanceMenuController.shared
-        item.representedObject = preference.rawValue
-        appearanceMenu.addItem(item)
-    }
-    appearanceItem.submenu = appearanceMenu
-    menu.addItem(appearanceItem)
     menu.addItem(.separator())
     menu.addItem(withTitle: "Increase Font Size",
                  action: #selector(EditorView.increaseFontSize(_:)), keyEquivalent: "+")

@@ -19,7 +19,14 @@ the code transcribes it and the tests assert the two agree.
   parsed at runtime because the editor needs colours before any file could be read, and
   `MTextCore` has no bundle access; the drift test is what makes that safe.
 - **Appearance** — `Sources/MTextUI/AppearanceController.swift`, three states
-  (`system`/`light`/`dark`), View ▸ Appearance, persisted in `UserDefaults`.
+  (`system`/`light`/`dark`), persisted in `UserDefaults`, reachable from **three** places:
+  the popup at the left of the status bar, **View ▸ Appearance** (near the top of the menu),
+  and the Command Palette (⌘⇧P, "View: Appearance: Dark"). All three set the same preference
+  and stay in sync with each other.
+
+  The first cut shipped only the menu item, correctly wired and ticked — and it was missed
+  entirely. A preference nobody can find is not shipped, which is why the smoke test now
+  asserts the *control* is visible, not just that the command exists.
 - **Icon** — `make icon` → `iconutil` → `build/m_text.icns`, referenced by `CFBundleIconFile`.
 
 ## Decisions worth knowing before changing any of this

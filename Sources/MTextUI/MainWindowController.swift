@@ -58,6 +58,48 @@ public final class MainWindowController: NSWindowController {
         return String(describing: type(of: hit))
     }
 
+    // MARK: - Appearance control
+
+    private func configureAppearancePopUp() {
+        appearancePopUp.translatesAutoresizingMaskIntoConstraints = false
+        appearancePopUp.isBordered = false
+        appearancePopUp.controlSize = .small
+        appearancePopUp.font = .systemFont(ofSize: 11)
+        appearancePopUp.toolTip = "Appearance — System follows your Mac's light/dark setting"
+        appearancePopUp.removeAllItems()
+        for preference in AppearancePreference.allCases {
+            appearancePopUp.addItem(withTitle: preference.displayName)
+            appearancePopUp.lastItem?.representedObject = preference.rawValue
+        }
+        appearancePopUp.target = self
+        appearancePopUp.action = #selector(appearancePopUpChanged(_:))
+        syncAppearancePopUp()
+        // The menu, the palette and this control all set the same preference, so whichever
+        // one is used the others have to catch up.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(syncAppearancePopUp),
+            name: AppearanceController.didChangeNotification, object: nil)
+    }
+
+    @objc private func appearancePopUpChanged(_ sender: NSPopUpButton) {
+        guard let raw = sender.selectedItem?.representedObject as? String else { return }
+        AppearanceController.shared.setPreference(AppearancePreference(settingValue: raw))
+    }
+
+    @objc private func syncAppearancePopUp() {
+        let current = AppearanceController.shared.preference
+        let index = AppearancePreference.allCases.firstIndex(of: current) ?? 0
+        appearancePopUp.selectItem(at: index)
+    }
+
+    /// The status-bar appearance control's current title, for `MTEXT_SMOKE_TEST`.
+    public var smokeTestAppearanceControlTitle: String { appearancePopUp.titleOfSelectedItem ?? "" }
+    public var smokeTestAppearanceControlIsVisible: Bool {
+        appearancePopUp.window != nil
+            && !appearancePopUp.isHiddenOrHasHiddenAncestor
+            && appearancePopUp.frame.width > 10
+    }
+
     /// The editor the other hooks drive, so a check can compare it against whoever actually
     /// holds first responder rather than assuming.
     public var smokeTestFocusedEditor: NSView { editor }
@@ -237,6 +279,11 @@ public final class MainWindowController: NSWindowController {
     private let paneSplitView = NSSplitView()
 
     private let statusLabel = NSTextField(labelWithString: "")
+
+    /// Light/dark control in the status bar. The command already existed in View ▸ Appearance
+    /// and in the command palette, and was still missed entirely — a preference nobody can
+    /// find is not shipped, so it also gets a visible control where editors normally put one.
+    private let appearancePopUp = NSPopUpButton(frame: .zero, pullsDown: false)
     private let findBar = FindBar()
     /// Which pane currently hosts `findBar` in its `findBarHost`, so hiding collapses the
     /// right pane's slot even if focus has since moved to the other pane. One shared bar
@@ -298,16 +345,23 @@ public final class MainWindowController: NSWindowController {
         let workspace = NSView()
         workspace.addSubview(paneSplitView)
         workspace.addSubview(statusLabel)
+        workspace.addSubview(appearancePopUp)
         NSLayoutConstraint.activate([
             paneSplitView.topAnchor.constraint(equalTo: workspace.topAnchor),
             paneSplitView.leadingAnchor.constraint(equalTo: workspace.leadingAnchor),
             paneSplitView.trailingAnchor.constraint(equalTo: workspace.trailingAnchor),
             paneSplitView.bottomAnchor.constraint(equalTo: statusLabel.topAnchor, constant: -2),
 
-            statusLabel.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 8),
+            // Bottom-left, where an editor's status bar conventionally puts its controls,
+            // and out of the way of the right-aligned caret/encoding readout.
+            appearancePopUp.leadingAnchor.constraint(equalTo: workspace.leadingAnchor, constant: 6),
+            appearancePopUp.centerYAnchor.constraint(equalTo: statusLabel.centerYAnchor),
+
+            statusLabel.leadingAnchor.constraint(equalTo: appearancePopUp.trailingAnchor, constant: 8),
             statusLabel.trailingAnchor.constraint(equalTo: workspace.trailingAnchor, constant: -8),
             statusLabel.bottomAnchor.constraint(equalTo: workspace.bottomAnchor, constant: -4),
         ])
+        configureAppearancePopUp()
 
         // Hidden (zero width) until a project or ad hoc folder is opened — see
         // `setProject(_:)`. Frame-positioned by the split view (see the comment on

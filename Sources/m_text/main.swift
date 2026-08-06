@@ -592,8 +592,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "system is a state of its own, not a synonym for light or dark")
             }
 
+            /// The appearance switch has to be *reachable*, not merely implemented. Nothing
+            /// else here looks at the menu bar, so a command that exists in code but never
+            /// reaches a menu — or reaches it disabled — looks exactly like a missing feature.
+            func appearanceMenuCheck() {
+                guard let view = NSApp.mainMenu?.items
+                    .first(where: { $0.submenu?.title == "View" })?.submenu else {
+                    check(false, "there is a View menu")
+                    return
+                }
+                guard let appearance = view.items
+                    .first(where: { $0.title == "Appearance" })?.submenu else {
+                    check(false, "View contains an Appearance submenu")
+                    return
+                }
+                // Delegates populate/tick on open; nothing has opened it yet.
+                appearance.delegate?.menuNeedsUpdate?(appearance)
+                let titles = appearance.items.map(\.title)
+                check(titles == ["System", "Light", "Dark"],
+                      "Appearance offers all three states (got \(titles))")
+                let enabled = appearance.items.filter {
+                    $0.target != nil && $0.action != nil && $0.isEnabled
+                }
+                check(enabled.count == 3,
+                      "and every one is enabled and wired (got \(enabled.count))")
+                check(appearance.items.filter { $0.state == .on }.count == 1,
+                      "with exactly one ticked as current")
+
+                // The control in the status bar. The menu item existed, was enabled and
+                // correctly ticked, and was still never found — so "the command exists" is
+                // not the property worth asserting on its own.
+                check(controller.smokeTestAppearanceControlIsVisible,
+                      "the status bar shows an appearance control")
+                AppearanceController.shared.setPreference(.dark)
+                check(controller.smokeTestAppearanceControlTitle == "Dark",
+                      "which follows changes made elsewhere "
+                      + "(got \(controller.smokeTestAppearanceControlTitle))")
+                AppearanceController.shared.setPreference(.system)
+                check(controller.smokeTestAppearanceControlTitle == "System",
+                      "in both directions (got \(controller.smokeTestAppearanceControlTitle))")
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { appearanceMenuCheck() },
                 { appearanceCheck() },
                 { renderCheck() },
                 { tabVisibilityCheck("on the restored session") },

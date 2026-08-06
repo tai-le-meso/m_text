@@ -46,9 +46,10 @@ harness and runner; `Sources/MTextTests` is a plain executable.
 
 ## Appearance and branding
 
-`View ▸ Appearance` — **System**, **Light** or **Dark**. System follows the OS and keeps
-following it, including while the app is open (flipping the OS theme repaints immediately).
-The choice persists across launches.
+**System**, **Light** or **Dark**, from any of: the popup at the left of the status bar,
+`View ▸ Appearance`, or the Command Palette (⌘⇧P). System follows the OS and keeps following
+it, including while the app is open — flipping the OS theme repaints immediately. The choice
+persists across launches.
 
 Colours are the m_text brand palette, taken from the "Syntax stack" mark that is also the app
 icon — which is why the caret and keywords are cyan. Every text/background pair is asserted at
