@@ -99,6 +99,31 @@ test is the safety net.
 
 ---
 
+<a id="playbook-7"></a>
+### 7. Do not trust `cacheDisplay` snapshots of this window
+
+Reading pixels back is the obvious way to answer "did anything actually render", and
+`bitmapImageRepForCachingDisplay` + `cacheDisplay` **does not answer it reliably here**.
+Measured on the same build, minutes apart: an all-white bitmap, then one with 124k ink
+pixels, then one fully transparent, then — per view, with `display()` forced first — one
+entirely black. The tree is layer-backed, and layer contents are not dependably composited
+into a cached-display bitmap.
+
+It works *within* the `MTEXT_SMOKE_TEST` path (`smokeTestRenderedInkPixels` reliably shows
+24.5k ink for an empty buffer versus 40.8k with text), so it is fine as a *relative*
+assertion inside one run. It is not fine as evidence about what a user sees.
+
+Two wrong conclusions were published from it before this was noticed: "every tab container
+is HIDDEN" (the visible one was past a `head -40` cut) and "the window renders blank" (the
+snapshot was simply empty). **If the question is what is on screen, ask for a real
+screenshot** — ⌘⇧4 — rather than a snapshot the app takes of itself. `screencapture -l`
+needs Screen Recording permission, which a terminal-launched process typically lacks.
+
+Corollary: when an instrument disagrees with a user's report, suspect the instrument, and
+re-measure before drawing any conclusion from it.
+
+---
+
 <a id="playbook-6"></a>
 ### 6. "Typing does nothing" — trace delivery, don't test handling
 

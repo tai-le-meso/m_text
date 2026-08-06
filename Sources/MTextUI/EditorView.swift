@@ -713,10 +713,22 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
     // MARK: - Drawing
 
     public override func draw(_ dirtyRect: NSRect) {
-        InputDiagnostics.log("""
-              -> draw dirty=\(dirtyRect.integral) bounds=\(bounds.integral) \
-            lines=\(document.lineCount) rows=\(rowMap.totalRows) lineHeight=\(lineHeight)
-            """)
+        if InputDiagnostics.isEnabled {
+            let bg = themeBackground.usingColorSpace(.deviceRGB)
+            let fg = (colorScheme.globals.foreground?.nsColor ?? .labelColor)
+                .usingColorSpace(.deviceRGB)
+            func hex(_ c: NSColor?) -> String {
+                guard let c else { return "?" }
+                return String(format: "#%02X%02X%02X a=%.2f",
+                              Int(c.redComponent * 255), Int(c.greenComponent * 255),
+                              Int(c.blueComponent * 255), c.alphaComponent)
+            }
+            InputDiagnostics.log("""
+                  -> draw dirty=\(dirtyRect.integral) bounds=\(bounds.integral) \
+                lines=\(document.lineCount) rows=\(rowMap.totalRows) lineHeight=\(lineHeight) \
+                bg=\(hex(bg)) fg=\(hex(fg))
+                """)
+        }
         guard let context = NSGraphicsContext.current?.cgContext else {
             InputDiagnostics.log("     ** no graphics context — nothing drawn **")
             return
@@ -806,6 +818,14 @@ public final class EditorView: NSView, NSTextInputClient, NSMenuItemValidation {
                 continue
             }
             let entry = cachedLine(row.line)
+            if InputDiagnostics.isEnabled {
+                let live = document.line(row.line)
+                InputDiagnostics.log("""
+                         row line=\(row.line) cached=\(String(reflecting: String(entry.text.prefix(30)))) \
+                    document=\(String(reflecting: String(live.prefix(30))))\
+                    \(entry.text != live ? "  ** CACHE DISAGREES WITH DOCUMENT **" : "")
+                    """)
+            }
             if entry.text.isEmpty { continue }
             let baseline = rowTop(row.row) + baselineOffset
 

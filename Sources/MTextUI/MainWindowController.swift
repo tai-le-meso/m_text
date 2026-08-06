@@ -62,6 +62,47 @@ public final class MainWindowController: NSWindowController {
     /// holds first responder rather than assuming.
     public var smokeTestFocusedEditor: NSView { editor }
 
+    /// Renders the focused editor into a bitmap and counts pixels that differ from the most
+    /// common colour — i.e. how much ink actually landed.
+    ///
+    /// Every other check here reads *geometry*: frames, widths, row counts, "draw was
+    /// called". All of that passes just as happily when the view paints nothing at all,
+    /// which is exactly the failure being chased — `draw` runs, rows are counted, the caret
+    /// advances, and the screen stays empty. Only reading pixels can tell those apart.
+    /// Same measurement taken on the whole window rather than the editor. If the editor
+    /// inks and the window does not, the *capture* is lying — `cacheDisplay` does not
+    /// reliably composite layer-backed descendants — and any "blank window" conclusion
+    /// drawn from a window-level snapshot is an artifact, not the bug.
+    public func smokeTestWindowInkPixels() -> Int {
+        guard let content = window?.contentView else { return -1 }
+        return Self.inkPixels(of: content)
+    }
+
+    public func smokeTestRenderedInkPixels() -> Int { Self.inkPixels(of: editor) }
+
+    private static func inkPixels(of view: NSView) -> Int {
+        view.layoutSubtreeIfNeeded()
+        let rect = view.visibleRect
+        guard rect.width > 1, rect.height > 1,
+              let rep = view.bitmapImageRepForCachingDisplay(in: rect)
+        else { return -1 }
+        view.cacheDisplay(in: rect, to: rep)
+
+        var histogram: [UInt32: Int] = [:]
+        let width = rep.pixelsWide, height = rep.pixelsHigh
+        guard let data = rep.bitmapData else { return -1 }
+        let bpr = rep.bytesPerRow, bpp = rep.bitsPerPixel / 8
+        for y in stride(from: 0, to: height, by: 2) {
+            for x in stride(from: 0, to: width, by: 2) {
+                let p = data + y * bpr + x * bpp
+                let key = UInt32(p[0]) << 16 | UInt32(p[1]) << 8 | UInt32(p[2])
+                histogram[key, default: 0] += 1
+            }
+        }
+        guard let background = histogram.max(by: { $0.value < $1.value })?.value else { return -1 }
+        return histogram.values.reduce(0, +) - background
+    }
+
     /// Tab-bar state for `MTEXT_SMOKE_TEST`. The active editor's geometry is reported from
     /// the *controller's* notion of the active tab, so a check cannot accidentally measure
     /// a different tab's editor than the one it is driving.

@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             newWindow(nil)
         }
         InputDiagnostics.installMonitor()
+        InputDiagnostics.dumpWindowRender()
         runSmokeTestIfRequested()
     }
 
@@ -488,7 +489,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "and it is the active tab's \(when)")
             }
 
+            /// Does text actually appear? Nothing else here asks that. Geometry checks and
+            /// "draw was called" traces both pass while the view paints nothing, which is
+            /// precisely the reported failure: keystrokes reach the document, `draw` runs,
+            /// rows are counted, the caret advances, and the pane stays empty.
+            func renderCheck() {
+                controller.smokeTestSetWordWrap(false)
+                controller.smokeTestEditorText = ""
+                let blank = controller.smokeTestRenderedInkPixels()
+
+                controller.smokeTestEditorText = String(repeating: "HELLO WORLD 12345\n", count: 30)
+                let inked = controller.smokeTestRenderedInkPixels()
+
+                check(blank >= 0 && inked >= 0, "could render the editor into a bitmap")
+                check(inked > blank,
+                      "text actually paints pixels (blank \(blank) -> with text \(inked))")
+
+                // Guards the *measurement*: if the editor inks but a window-level snapshot
+                // of the same moment comes back empty, then `cacheDisplay` is failing to
+                // composite layer-backed descendants and no "the window is blank"
+                // conclusion may be drawn from such a snapshot.
+                let windowInk = controller.smokeTestWindowInkPixels()
+                check(windowInk > 0,
+                      "a window-level snapshot sees that same text (\(windowInk) ink pixels) "
+                      + "— if this is 0 while the editor inks, the capture is unreliable")
+            }
+
             run([
+                { renderCheck() },
                 { tabVisibilityCheck("on the restored session") },
                 { newTabCheck() },
                 { tabVisibilityCheck("after creating tabs") },

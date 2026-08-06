@@ -143,9 +143,16 @@ final class Pane {
     /// touch window-level chrome (title, status line, first responder) — callers that
     /// need that also call through `MainWindowController.activate(_:)`, which wraps this.
     func activate(_ tab: Tab) {
-        guard tabs.contains(where: { $0 === tab }) else { return }
+        guard tabs.contains(where: { $0 === tab }) else {
+            InputDiagnostics.log("Pane.activate IGNORED — tab not in this pane (\(tabs.count) tabs)")
+            return
+        }
         activeTab = tab
         for candidate in tabs { candidate.container.isHidden = (candidate !== tab) }
+        InputDiagnostics.log("""
+            Pane.activate index=\(tabs.firstIndex { $0 === tab } ?? -1) of \(tabs.count) \
+            visible=\(visibleContainerCount)
+            """)
     }
 
     /// Every tab's container is stacked in `editorContainer` with identical constraints, so
