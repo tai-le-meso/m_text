@@ -147,6 +147,13 @@ public struct EditorSettings: Equatable {
     /// Columns to wrap at. 0 means "the window width", which is the common case; a fixed
     /// number is for people who wrap to a ruler.
     public var wrapWidth: Int
+    /// Whether m_text may check GitHub for a newer release in the background.
+    ///
+    /// **Off by default, and the only thing in this app that touches the network.** The
+    /// project is offline by default; turning this on is the user opting in. Picking
+    /// *Check for Updates…* by hand works regardless — that is an explicit request rather
+    /// than background traffic.
+    public var checkForUpdates: Bool
     /// T93 — the downsampled overview strip beside the editor.
     public var minimap: Bool
     /// T101 — spell check comments, strings and prose.
@@ -185,6 +192,7 @@ public enum SettingsResolver {
         "wrap_width": .int(0),
         "minimap": .bool(false),
         "spell_check": .bool(false),
+        "check_for_updates": .bool(false),
     ]
 
     public static var defaultLayer: SettingsLayer {
@@ -241,6 +249,10 @@ public enum SettingsResolver {
         // still opens it on demand.
         "auto_complete": true,
 
+        // Check GitHub for a newer m_text once a day. Off by default: this is the only
+        // setting that makes the app use the network at all.
+        "check_for_updates": false,
+
         // Wrap long lines instead of scrolling sideways.
         "word_wrap": false,
 
@@ -285,6 +297,7 @@ public enum SettingsResolver {
             autoComplete: value("auto_complete")?.boolValue ?? true,
             wordWrap: value("word_wrap")?.boolValue ?? false,
             wrapWidth: max(0, value("wrap_width")?.intValue ?? 0),
+            checkForUpdates: value("check_for_updates")?.boolValue ?? false,
             minimap: value("minimap")?.boolValue ?? false,
             spellCheck: value("spell_check")?.boolValue ?? false
         )

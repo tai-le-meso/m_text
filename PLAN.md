@@ -1,6 +1,7 @@
 # m_text — Native macOS Sublime Text Clone
 
-Pure Swift + AppKit. No Xcode, no SwiftUI, no third-party dependencies. Built entirely with Swift Package Manager from the command line. 100% offline, all state stored locally.
+Pure Swift + AppKit. No Xcode, no SwiftUI, no third-party dependencies. Built entirely with Swift Package Manager from the command line. Offline by default (the
+only network request is an opt-in update check), all state stored locally.
 
 ---
 
