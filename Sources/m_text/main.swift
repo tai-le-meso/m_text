@@ -137,8 +137,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             /// exactly this, and it is the path that used to bypass `activate(_:)`.
             func focusEditor(inPane index: Int) {
                 let panes = paneViews()
+                // The *visible* editor: a pane holds one per tab, and `makeFirstResponder`
+                // on a hidden view fails silently — which left ⌘F unexercised while the
+                // checks after it still passed.
                 guard panes.indices.contains(index),
-                      let editor = descendants(of: panes[index], named: "EditorView").first
+                      let editor = descendants(of: panes[index], named: "EditorView")
+                        .first(where: { !$0.isHiddenOrHasHiddenAncestor })
                 else { return }
                 window.makeFirstResponder(editor)
             }
@@ -147,10 +151,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             /// paths — the controller's own `performFind` is only the fallback used while
             /// the find field has focus — and only this one reflects what a keypress does.
             func pressCommandF() {
-                guard let editor = window.firstResponder as? NSView,
-                      String(describing: type(of: editor)) == "EditorView" else {
-                    print("  ✗ ⌘F: first responder is not an editor"); return
-                }
+                let responder = window.firstResponder
+                let name = responder.map { String(describing: type(of: $0)) } ?? "nil"
+                // A real check, not a printed note: this used to be a bare `print`, so when
+                // the editor did not have focus ⌘F never ran and the assertions that follow
+                // passed anyway — on state left over from earlier steps.
+                check(name == "EditorView",
+                      "⌘F is delivered to an editor (first responder is \(name))")
+                guard let editor = responder as? NSView, name == "EditorView" else { return }
                 _ = NSApp.sendAction(#selector(EditorView.performFind(_:)), to: editor, from: nil)
             }
 

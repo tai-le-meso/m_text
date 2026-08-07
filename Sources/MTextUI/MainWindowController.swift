@@ -165,7 +165,13 @@ public final class MainWindowController: NSWindowController {
             // bounds by a few points (a label's content layer carries ascenders and
             // descenders), and policing framework internals would make this check noise.
             let name = String(describing: type(of: view))
-            if let layer = view.layer, !view.isHiddenOrHasHiddenAncestor, !name.hasPrefix("NS") {
+            // A document view inside a scroll view is *meant* to be bigger than what shows —
+            // that is what scrolling is — and the clip view does the clipping. Flagging it
+            // made this check fail purely because a session had enough tabs for the tab bar
+            // to exceed its visible width, which is a flaky check, not a finding.
+            let clippedByAncestor = view.enclosingScrollView != nil
+            if let layer = view.layer, !view.isHiddenOrHasHiddenAncestor,
+               !name.hasPrefix("NS"), !clippedByAncestor {
                 let bounds = view.bounds.insetBy(dx: -1, dy: -1)
                 for sub in layer.sublayers ?? [] where sub.contents != nil && !sub.isHidden {
                     if !bounds.contains(sub.frame), !layer.masksToBounds {
