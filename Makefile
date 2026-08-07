@@ -2,7 +2,7 @@ APP      := m_text
 BUILDDIR := build
 BUNDLE   := $(BUILDDIR)/$(APP).app
 
-.PHONY: all release bundle icon dmg run debug test test-release clean
+.PHONY: all release bundle icon dmg run debug test test-release screenshots clean
 
 all: bundle
 
@@ -21,6 +21,16 @@ release:
 # `iconutil` ships with the Command Line Tools. Offline, like everything else here.
 ICNS := $(BUILDDIR)/$(APP).icns
 ICONSET := Resources/Branding/$(APP).iconset
+
+# Landing-page screenshots, captured from the real app (see docs/README.md).
+# Sizes down to 1400px so the page stays light.
+screenshots:
+	@mkdir -p docs/assets
+	MTEXT_CAPTURE=$(BUILDDIR)/shots swift run m_text
+	@for f in editor-dark editor-light split-dark; do \
+		sips -Z 1400 $(BUILDDIR)/shots/$$f.png --out docs/assets/$$f.png >/dev/null; done
+	@sips -Z 1120 $(BUILDDIR)/shots/palette-dark.png --out docs/assets/palette-dark.png >/dev/null
+	@echo "Updated docs/assets — check the capture's colour/transparency report above"
 
 icon: $(ICNS)
 

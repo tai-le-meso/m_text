@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         InputDiagnostics.installMonitor()
         InputDiagnostics.dumpWindowRender()
         runSmokeTestIfRequested()
+        CaptureMode.runIfRequested(controller: controllers.first)
     }
 
     /// Opt-in UI smoke check — `MTEXT_SMOKE_TEST=1 make debug`, exits non-zero on failure.

@@ -122,6 +122,10 @@ and known gaps — read that for the task you're touching rather than re-derivin
   `NSPanel` cannot become key, so ⌘P and ⌘⇧P listed everything and ignored every
   keystroke. Present since the initial commit; fixed by `PalettePanel`
   (`KNOWLEDGE.md` S7).
+- **Landing page**: `docs/` (GitHub Pages, `main` / `/docs`) — one self-contained HTML file
+  plus screenshots captured from the running app via `make screenshots`
+  (`Sources/m_text/CaptureMode.swift`). Read `docs/README.md` before editing it: three separate
+  blank-page bugs came from entrance effects deciding whether content was visible at all.
 - **Branding**: `BrandTheme.swift` (light/dark tokens + WCAG contrast, asserted in
   `BrandThemeTests`), `ColorScheme.brand(_:)`, `AppearanceController` (three-state
   system/light/dark, live OS-flip handling), View ▸ Appearance, and the "Syntax stack"

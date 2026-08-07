@@ -44,6 +44,12 @@ Tests do **not** use XCTest — that ships inside Xcode.app, and this project bu
 tests with Command Line Tools alone. `Sources/MTextTestKit` is a small assertion
 harness and runner; `Sources/MTextTests` is a plain executable.
 
+## Landing page
+
+A GitHub Pages site lives in [`docs/`](docs/) — enable it under **Settings ▸ Pages ▸ Source:
+`main` / `/docs`**. Its screenshots are captured from the real app with `make screenshots`,
+not mocked up. See [`docs/README.md`](docs/README.md).
+
 ## Appearance and branding
 
 **System**, **Light** or **Dark**, from any of: the popup at the left of the status bar,

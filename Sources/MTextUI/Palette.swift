@@ -76,6 +76,15 @@ public final class Palette: NSObject, NSTextFieldDelegate, NSTableViewDataSource
     /// its panel can actually take keyboard focus. A palette that shows but cannot become
     /// key swallows every keystroke — see `MTEXT_SMOKE_TEST`.
     public var smokeTestQuery: String { searchField.stringValue }
+    /// The panel's own content view. The palette is a separate window, so a capture of the
+    /// document window cannot contain it — it has to be rendered on its own.
+    public var smokeTestPanelContentView: NSView? { panel.contentView }
+    /// Types into the palette without needing a key window, for capture/preview runs.
+    public func smokeTestSetQuery(_ text: String) {
+        searchField.stringValue = text
+        controlTextDidChange(Notification(name: NSControl.textDidChangeNotification,
+                                          object: searchField))
+    }
     public var smokeTestItemCount: Int { items.count }
     public var smokeTestPanelCanBecomeKey: Bool { panel.canBecomeKey }
     public var smokeTestPanelIsKey: Bool { panel.isKeyWindow }
