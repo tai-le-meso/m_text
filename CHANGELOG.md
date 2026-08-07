@@ -7,7 +7,7 @@ request like everything else and cannot drift from what shipped.
 **Add a section before tagging.** A tag with no matching section still releases — the notes
 just fall back to the auto-generated commit list.
 
-## 1.0.2
+## 1.0.3
 
 ### Update checking (opt-in)
 
@@ -26,6 +26,8 @@ ignored.
 
 It does not install anything yet — for that to be safe these builds need a signature to
 verify against, which is a separate piece of work (see DISTRIBUTION.md).
+
+## 1.0.2
 
 ### Open folders like Sublime (phase 2)
 

@@ -4,7 +4,7 @@ BUNDLE   := $(BUILDDIR)/$(APP).app
 
 # Stamped into the bundle's Info.plist and the DMG filename. CI passes the git tag
 # (`make dmg VERSION=1.2.3`); the default is what a local build produces.
-VERSION  ?= 1.0.2
+VERSION  ?= 1.0.3
 
 # `UNIVERSAL=1` builds an arm64 + x86_64 binary, which is what a release wants — a
 # native-only DMG simply will not launch on the other architecture.

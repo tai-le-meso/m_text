@@ -316,7 +316,7 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text">View source</a>
     </div>
     <p class="dl-meta reveal">
-      Universal — Apple Silicon &amp; Intel · macOS 13+ · <span id="dl-version">v1.0.2</span> ·
+      Universal — Apple Silicon &amp; Intel · macOS 13+ · <span id="dl-version">v1.0.3</span> ·
       <a href="https://github.com/tai-le-meso/m_text/releases">all releases</a>
     </p>
 
@@ -416,7 +416,7 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     <p class="lead reveal">
       A native macOS text editor in pure Swift and AppKit — no Electron, no web view, no
       third-party dependencies. Download
-      <a href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download><code>m_text-1.0.2.dmg</code></a>,
+      <a href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download><code>m_text-1.0.3.dmg</code></a>,
       open it, and drag <strong>m_text</strong> to Applications. Universal: Apple Silicon and Intel.
     </p>
 
@@ -494,39 +494,40 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     <p class="eyebrow reveal">Releases</p>
     <h2 class="reveal">Current release</h2>
     <p class="lead reveal">
-      Releases are cut from a git tag: pushing <code>v1.0.2</code> makes CI run the tests,
+      Releases are cut from a git tag: pushing <code>v1.0.3</code> makes CI run the tests,
       build a universal DMG, verify it mounts, and publish it. The tag is the only place the
       version lives, so a published build cannot disagree with the tag it came from.
     </p>
 
     <div class="release reveal">
       <div class="release-head">
-        <span class="tag">v1.0.2</span>
+        <span class="tag">v1.0.3</span>
         <span class="pill">7 August 2026</span>
         <span class="pill">Universal</span>
         <span class="pill">macOS 13+</span>
       </div>
       <p style="margin:10px 0 0;color:var(--muted);font-size:14.8px">
-        Folders the way you actually open them, and a shell command to match.
+        m_text can now tell you when there is a new version — if you ask it to.
       </p>
       <ul class="what">
-        <li><strong>Drag folders onto the window</strong> — they join the project; dropped
-            files open as tabs</li>
-        <li><strong>Finder ▸ Open With</strong>, Dock drops, and <strong>File ▸ Open Recent</strong></li>
-        <li><strong>The <code>mtext</code> command</strong> — <code>mtext .</code> opens the
-            current folder; install it from Help, no terminal needed</li>
-        <li>Project files are now <code>.mtext-project</code> (<code>.sublime-project</code>
-            still opens)</li>
-        <li><strong>Fixed:</strong> <code>mtext .</code> opening a folder twice, and opening an
-            already-open file giving you a second tab for it</li>
+        <li><strong>m_text ▸ Check for Updates…</strong> asks GitHub straight away</li>
+        <li>A daily background check runs only if you switch on <code>check_for_updates</code>
+            in Settings — <strong>it ships off</strong></li>
+        <li>Offers <em>Download</em>, <em>Release Notes</em>, <em>Skip This Version</em> or
+            <em>Later</em>; skipping hides that one version, not every future one</li>
+        <li><strong>It does not install anything yet.</strong> These builds are ad-hoc signed,
+            so there is nothing to verify a downloaded update against — installing
+            automatically needs a signing key first</li>
       </ul>
       <div class="release-links">
         <a class="btn btn-primary" href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>Download DMG</a>
-        <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text/releases/tag/v1.0.2">Release notes</a>
+        <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text/releases/tag/v1.0.3">Release notes</a>
         <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text/releases">All releases</a>
       </div>
       <p style="margin:20px 0 0;color:var(--muted);font-size:13.8px">
         Previously —
+        <a href="https://github.com/tai-le-meso/m_text/releases/tag/v1.0.2">v1.0.2</a>:
+        drag folders, Open Recent and the <code>mtext</code> command;
         <a href="https://github.com/tai-le-meso/m_text/releases/tag/v1.0.1">v1.0.1</a>:
         several folders in one window;
         <a href="https://github.com/tai-le-meso/m_text/releases/tag/v1.0.0">v1.0.0</a>:
@@ -541,8 +542,8 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     </p>
     <div class="term reveal">
       <button class="copy" type="button" data-copy>Copy</button>
-<pre><span class="p">$</span> shasum -a 256 -c m_text-1.0.2.dmg.sha256
-<span class="o">m_text-1.0.2.dmg: OK</span></pre>
+<pre><span class="p">$</span> shasum -a 256 -c m_text-1.0.3.dmg.sha256
+<span class="o">m_text-1.0.3.dmg: OK</span></pre>
     </div>
 
     <p class="lead reveal" style="margin-top:26px">
