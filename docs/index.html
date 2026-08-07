@@ -253,7 +253,7 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     </p>
     <div class="cta reveal">
       <a class="btn btn-primary" href="#install">Get&nbsp;started</a>
-      <a class="btn btn-ghost" href="https://github.com/" data-repo-link>View source</a>
+      <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text">View source</a>
     </div>
 
     <div class="shot-wrap reveal">
@@ -351,7 +351,7 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     <h2 class="reveal">Clone it and run make</h2>
     <p class="lead reveal">macOS 13 or later, and the Command Line Tools. There is no Xcode project, and nothing is fetched from the network.</p>
     <div class="term reveal">
-<pre><span class="p">$</span> git clone https://github.com/&lt;you&gt;/m_text.git
+<pre><span class="p">$</span> git clone https://github.com/tai-le-meso/m_text.git
 <span class="p">$</span> cd m_text
 <span class="p">$</span> make            <span class="c"># builds build/m_text.app</span>
 <span class="p">$</span> make run        <span class="c"># build and launch</span>
@@ -503,14 +503,6 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     entries.forEach(e => { if (e.isIntersecting) { play(); obs.disconnect(); } });
   }, { threshold: 0.4 }).observe(document.getElementById('pal'));
   render('');
-
-  /* ── Repo link: fill in from the page's own origin when served on Pages. ── */
-  const link = document.querySelector('[data-repo-link]');
-  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
-  if (m) {
-    const repo = location.pathname.split('/').filter(Boolean)[0];
-    link.href = repo ? `https://github.com/${m[1]}/${repo}` : `https://github.com/${m[1]}`;
-  }
 })();
 </script>
 </body>

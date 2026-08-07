@@ -1,5 +1,7 @@
 # Landing page
 
+Live at <https://tai-le-meso.github.io/m_text/>.
+
 Served by GitHub Pages from this folder — **Settings ▸ Pages ▸ Source: `main` / `/docs`**.
 Plain HTML, CSS and JS in one file. No build step, no framework, nothing fetched from a CDN,
 matching the app's own no-dependency rule.
