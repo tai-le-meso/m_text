@@ -42,7 +42,59 @@ public struct Project: Equatable {
     }
 
     public static func adHoc(folder url: URL) -> Project {
-        Project(fileURL: nil, folders: [ProjectFolder(url: url)])
+        adHoc(folders: [url])
+    }
+
+    /// An ad hoc project over several folders — what "Open Folder…" produces when more
+    /// than one is picked, and what dropping folders on the window builds.
+    ///
+    /// Sublime treats a window's folder list as an ordered set, and so does this:
+    /// duplicates collapse, order is the order you added them.
+    public static func adHoc(folders urls: [URL]) -> Project {
+        Project(fileURL: nil, folders: Project.deduplicated(urls.map { ProjectFolder(url: $0) }))
+    }
+
+    /// This project plus `folder`, or unchanged if that folder is already a root.
+    ///
+    /// **A folder nested inside an existing root is allowed**, matching Sublime: opening
+    /// `~/proj` and then adding `~/proj/src` gives two roots, and the sidebar shows the
+    /// subtree twice. That is deliberate — people do it to keep a deep directory one click
+    /// away — and rejecting it would be a behaviour difference nobody asked for.
+    public func adding(folder url: URL) -> Project {
+        Project(fileURL: fileURL,
+                folders: Project.deduplicated(folders + [ProjectFolder(url: url)]),
+                settings: settings)
+    }
+
+    public func adding(folders urls: [URL]) -> Project {
+        urls.reduce(self) { $0.adding(folder: $1) }
+    }
+
+    /// This project without `folder`.
+    public func removing(folder url: URL) -> Project {
+        let target = Project.key(url)
+        return Project(fileURL: fileURL,
+                       folders: folders.filter { Project.key($0.url) != target },
+                       settings: settings)
+    }
+
+    public func contains(folder url: URL) -> Bool {
+        folders.contains { Project.key($0.url) == Project.key(url) }
+    }
+
+    /// Identity for a root folder.
+    ///
+    /// `.path`, not the URL: a folder picked from an `NSOpenPanel` and the same folder typed
+    /// with a trailing slash produce URLs that are *not* equal — `standardizedFileURL` keeps
+    /// the trailing slash, so `/tmp/a/` != `/tmp/a` — which left a sidebar row that nothing
+    /// could remove. `.path` normalises it away.
+    private static func key(_ url: URL) -> String { url.standardizedFileURL.path }
+
+    /// First occurrence wins, so an existing root keeps its `name` and excludes rather than
+    /// being replaced by a bare re-add of the same path.
+    private static func deduplicated(_ folders: [ProjectFolder]) -> [ProjectFolder] {
+        var seen: Set<String> = []
+        return folders.filter { seen.insert(Project.key($0.url)).inserted }
     }
 
     /// Every excluded name across every folder — for callers like `FileIndex` that

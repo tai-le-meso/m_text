@@ -24,6 +24,7 @@ you will arrive: something looks wrong on screen and you don't yet know why.
 | Drawing looks correct in every trace but nothing appears | Dump the **layer** tree, not the view tree | [S6](#s6) |
 | "Can't edit or do anything" — window fine, not crashed, but typing barely registers; only in big files | A full-buffer scan running on every keystroke | [S5](#s5) |
 | Any pane/divider/sizing weirdness after adding a split | `NSSplitView` never lays out a newly added subview | [P1](#p1) |
+| Open Folder… appears to do nothing — no sidebar, no tree | Sidebar unhidden but left at zero width | [P1](#p1) |
 | A "fix" that changes focus appears to do nothing at all | `dismissFind()` steals first responder back | [P2](#p2) |
 | Build fails right after moving a type or adding a `public` API | See [compile bug classes](#compile-bug-classes) | — |
 
@@ -412,6 +413,23 @@ the divider can be dragged flush to the edge and reproduce it by hand. This is n
 error — it silently produces a focused, invisible pane.
 
 <a id="p2"></a>
+
+**The same bug bit the sidebar, and hid a whole feature.** `setProject` and `toggleSidebar`
+both set `sidebar.isHidden = false` and called `adjustSubviews()`. The sidebar starts hidden
+at zero width, `adjustSubviews()` redistributes *proportionally*, and zero stays zero — so
+"Open Folder…" populated the outline view correctly and **nothing appeared on screen**. It
+looked like the command did nothing. Showing it needs an explicit
+`setPosition(width, ofDividerAt: 0)`.
+
+**Hiding it is not the mirror image.** `setPosition(0, ofDividerAt: 0)` does *not* hide it
+here: the delegate's `constrainMinCoordinate` clamps the position up to the 160pt minimum,
+and giving a split view a position also un-collapses the subview — so hiding left a 160pt
+strip. Hide with `isHidden` + `adjustSubviews()` (which collapses to zero correctly) and set
+a position only when showing.
+
+**What let it survive**: the smoke check counted sidebar *rows*, which is happily non-zero
+while the column is zero-width and invisible. Assert the on-screen width, not just the model.
+Same lesson as S6 — geometry that reads correct is not the same as pixels on screen.
 ### P2 — `dismissFind()` steals first responder
 
 `EditorView.dismissFind()` ends with `window?.makeFirstResponder(self)`. That is right for

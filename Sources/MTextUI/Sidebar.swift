@@ -32,7 +32,19 @@ public final class Sidebar: NSView {
     }
 
     /// Fired when a file row is clicked — `MainWindowController` opens it.
+    /// Root rows currently shown, for `MTEXT_SMOKE_TEST` — read from the outline view's
+    /// own data, so a model that updated without the tree reloading still fails the check.
+    public var smokeTestRootCount: Int { outlineView.numberOfChildren(ofItem: nil) }
+    public var smokeTestRootNames: [String] {
+        (0 ..< outlineView.numberOfChildren(ofItem: nil)).compactMap {
+            (outlineView.child($0, ofItem: nil) as? Node)?.displayName
+        }
+    }
+
     public var onOpenFile: ((URL) -> Void)?
+    /// Asks the window controller to drop a root folder from the project. The sidebar owns
+    /// the row that was clicked, but not the project — so it reports rather than mutates.
+    public var onRemoveFolder: ((URL) -> Void)?
 
     /// Caps live-watched directories the same way `FileIndex` caps its own watchers —
     /// beyond this, expanding a folder still works, it just won't auto-refresh when
@@ -257,6 +269,11 @@ public final class Sidebar: NSView {
         }
     }
 
+    @objc private func removeFolder() {
+        guard let node = contextNode, node.parent == nil else { return }
+        onRemoveFolder?(node.url)
+    }
+
     @objc private func revealInFinder() {
         guard let node = contextNode else { return }
         NSWorkspace.shared.activateFileViewerSelecting([node.url])
@@ -365,6 +382,13 @@ extension Sidebar: NSMenuDelegate {
         if node.parent != nil {
             menu.addItem(withTitle: "Rename…", action: #selector(rename), keyEquivalent: "")
             menu.addItem(withTitle: "Delete", action: #selector(delete), keyEquivalent: "")
+            menu.addItem(.separator())
+        } else {
+            // A root is a *project* folder, not a file: removing it takes it out of the
+            // window and leaves the directory on disk untouched, which is why it is worded
+            // differently from Delete and sits only on roots.
+            menu.addItem(withTitle: "Remove Folder from Project",
+                         action: #selector(removeFolder), keyEquivalent: "")
             menu.addItem(.separator())
         }
         menu.addItem(withTitle: "Reveal in Finder", action: #selector(revealInFinder), keyEquivalent: "")

@@ -265,6 +265,26 @@ public final class MainWindowController: NSWindowController {
     }
     /// Loads a file into the focused tab, so the hook can exercise the baseline.
     public func smokeTestOpen(_ url: URL) { open(url: url) }
+
+    /// Multi-folder project hooks for `MTEXT_SMOKE_TEST`. The sidebar's root count is read
+    /// from the outline view rather than from `Project`, so the check sees what is on screen
+    /// and not merely what the model believes.
+    public func smokeTestOpenFolders(_ urls: [URL]) { setProject(.adHoc(folders: urls)) }
+    public func smokeTestAddFolder(_ url: URL) {
+        setProject(currentProject.map { $0.adding(folder: url) } ?? .adHoc(folder: url))
+    }
+    public func smokeTestRemoveFolder(_ url: URL) { removeFolderFromProject(url) }
+    public var smokeTestProjectFolderCount: Int { currentProject?.folders.count ?? 0 }
+    public var smokeTestSidebarRootCount: Int { sidebar.smokeTestRootCount }
+    /// The sidebar's *on-screen* width. Row count alone passed happily while the sidebar
+    /// sat at zero width and the folder tree was invisible — which is precisely the bug
+    /// opening a folder had.
+    public var smokeTestSidebarWidth: CGFloat {
+        sidebar.isHiddenOrHasHiddenAncestor ? 0 : sidebar.frame.width
+    }
+    public func smokeTestToggleSidebar() { toggleSidebar(nil) }
+    public var smokeTestSidebarRootNames: [String] { sidebar.smokeTestRootNames }
+    public var smokeTestWindowTitle: String { window?.title ?? "" }
     /// Focused editor's text, for the smoke hook. Going through the controller rather than
     /// hunting the view tree: a pane holds one `EditorView` per tab, so "the first editor in
     /// this pane" is not necessarily the active one.
@@ -279,6 +299,10 @@ public final class MainWindowController: NSWindowController {
 
     private let sidebar = Sidebar()
     private let sidebarSplitView = NSSplitView()
+    /// Width the sidebar returns to when shown. Remembered across hide/show within a
+    /// session so dragging the divider isn't undone by toggling.
+    private var sidebarWidth: CGFloat = 240
+    private static let minimumSidebarWidth: CGFloat = 160
     private let paneSplitView = NSSplitView()
 
     private let statusLabel = NSTextField(labelWithString: "")
@@ -371,6 +395,7 @@ public final class MainWindowController: NSWindowController {
         // `workspace` above), so no `translatesAutoresizingMaskIntoConstraints = false`.
         sidebar.isHidden = true
         sidebar.onOpenFile = { [weak self] url in self?.open(url: url) }
+        sidebar.onRemoveFolder = { [weak self] url in self?.removeFolderFromProject(url) }
 
         sidebarSplitView.isVertical = true
         sidebarSplitView.dividerStyle = .thin
@@ -1442,12 +1467,34 @@ public final class MainWindowController: NSWindowController {
 
     // MARK: - Sidebar (T82)
 
-    @objc public func toggleSidebar(_ sender: Any?) {
-        sidebar.isHidden.toggle()
-        // Belt-and-suspenders: `NSSplitView` is expected to treat a hidden arranged
-        // subview as collapsed (zero width, divider hidden) on its own, but forcing a
-        // relayout here costs nothing and removes any doubt about that timing.
+    /// Shows or hides the sidebar, and — the part that matters — gives it a width.
+    ///
+    /// **`adjustSubviews()` cannot do this on its own.** A classic `NSSplitView`
+    /// redistributes space *proportionally*, so a subview sitting at zero width stays at
+    /// zero: the sidebar unhid, the outline view populated, and nothing appeared. Opening a
+    /// folder looked like it did nothing at all. Exactly the failure `KNOWLEDGE.md` S2
+    /// records for "Split View Right", in the other split view.
+    private func setSidebarVisible(_ visible: Bool) {
+        if !visible, !sidebar.isHidden, sidebar.frame.width > 1 {
+            sidebarWidth = max(MainWindowController.minimumSidebarWidth, sidebar.frame.width)
+        }
+        sidebar.isHidden = !visible
         sidebarSplitView.adjustSubviews()
+        // Only when showing. `setPosition(0)` to hide does not work here: the delegate's
+        // `constrainMinCoordinate` clamps it up to the 160pt minimum *and* the split view
+        // treats being given a position as un-collapsing, so hiding left a 160pt strip.
+        // Hiding is `isHidden` plus `adjustSubviews`, which collapses it to zero on its own.
+        if visible {
+            sidebarSplitView.setPosition(sidebarWidth, ofDividerAt: 0)
+        }
+        sidebarSplitView.layoutSubtreeIfNeeded()
+    }
+
+    @objc public func toggleSidebar(_ sender: Any?) {
+        // A sidebar with no folders has nothing to show; toggling it open would give an
+        // empty column and no way to tell why.
+        guard currentProject?.folders.isEmpty == false else { return }
+        setSidebarVisible(sidebar.isHidden)
     }
 
     // MARK: - Session persistence (T84) and hot exit (T85)
@@ -1499,9 +1546,10 @@ public final class MainWindowController: NSWindowController {
             if let fileURL = project.fileURL {
                 state.projectFilePath = fileURL.path
             } else {
-                // An ad hoc (Open Folder…) project has no file; its one folder is the
-                // whole identity.
-                state.adHocFolderPath = project.folders.first?.url.path
+                // An ad hoc (Open Folder…) project has no file; its folders are the whole
+                // identity — all of them. Storing only the first silently dropped every
+                // other root of a multi-folder window on restart.
+                state.adHocFolderPaths = project.folders.map { $0.url.path }
             }
         }
         return state
@@ -1531,8 +1579,11 @@ public final class MainWindowController: NSWindowController {
             // block launch" exists to avoid. A project file deleted between runs just
             // restores as no project.
             loadProject(from: URL(fileURLWithPath: path))
-        } else if let path = state.adHocFolderPath {
-            setProject(Project.adHoc(folder: URL(fileURLWithPath: path)))
+        } else {
+            // `restorableFolderPaths` folds in the pre-multi-folder field, so a session
+            // written by an older build still restores its folder.
+            let folders = state.restorableFolderPaths.map { URL(fileURLWithPath: $0) }
+            if !folders.isEmpty { setProject(Project.adHoc(folders: folders)) }
         }
 
         for (paneIndex, paneState) in state.panes.enumerated() {
@@ -1569,8 +1620,7 @@ public final class MainWindowController: NSWindowController {
         // `setProject` above already showed/hid the sidebar by whether the project has
         // folders; the session's explicit visibility (the user may have ⌘K⌘B'd it away)
         // wins — but never shows a sidebar with no project to list.
-        sidebar.isHidden = !(state.sidebarVisible && currentProject != nil)
-        sidebarSplitView.adjustSubviews()
+        setSidebarVisible(state.sidebarVisible && currentProject != nil)
         refreshChrome()
     }
 
@@ -1819,11 +1869,45 @@ public final class MainWindowController: NSWindowController {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
+        // Sublime opens as many folders as you pick into one window; picking one is just
+        // the common case of that, not a separate feature.
+        panel.allowsMultipleSelection = true
+        panel.message = "Choose one or more folders to open in this window"
+        panel.prompt = "Open"
         panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
-            self?.setProject(.adHoc(folder: url))
+            guard response == .OK, !panel.urls.isEmpty else { return }
+            self?.setProject(.adHoc(folders: panel.urls))
         }
+    }
+
+    /// Project ▸ Add Folder to Project… — the other half of multi-folder windows. Adds to
+    /// whatever is open rather than replacing it, and starts a project if none is open, so
+    /// there is no state in which the command is a dead end.
+    @objc public func addFolderToProject(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.message = "Choose one or more folders to add to this window"
+        panel.prompt = "Add"
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .OK, !panel.urls.isEmpty else { return }
+            if let project = self.currentProject {
+                self.setProject(project.adding(folders: panel.urls))
+            } else {
+                self.setProject(.adHoc(folders: panel.urls))
+            }
+        }
+    }
+
+    /// Sidebar ▸ Remove Folder from Project. Removing the last root closes the project
+    /// outright, so the window does not sit in a "project with no folders" state that
+    /// nothing else here expects.
+    public func removeFolderFromProject(_ url: URL) {
+        guard let project = currentProject else { return }
+        let updated = project.removing(folder: url)
+        setProject(updated.folders.isEmpty ? nil : updated)
     }
 
     @objc public func switchProject(_ sender: Any?) {
@@ -1863,8 +1947,7 @@ public final class MainWindowController: NSWindowController {
     private func setProject(_ project: Project?) {
         currentProject = project
         sidebar.setFolders(project?.folders ?? [])
-        sidebar.isHidden = (project?.folders.isEmpty ?? true)
-        sidebarSplitView.adjustSubviews()
+        setSidebarVisible(!(project?.folders.isEmpty ?? true))
         // The project layer just moved (T86) — including on close, where dropping the
         // project must also drop whatever it was overriding.
         applySettingsToAllTabs()
@@ -1876,7 +1959,12 @@ public final class MainWindowController: NSWindowController {
     /// `Project?` so that's enforced at the call site instead of handled here.
     private func projectDisplayName(_ project: Project) -> String {
         if let fileURL = project.fileURL { return fileURL.deletingPathExtension().lastPathComponent }
-        return project.folders.first?.displayName ?? "m_text"
+        guard let first = project.folders.first else { return "m_text" }
+        // Sublime titles a multi-folder window after the first folder; the count is added
+        // so a window holding four roots doesn't look identical to one holding just that
+        // first folder.
+        let extra = project.folders.count - 1
+        return extra > 0 ? "\(first.displayName) +\(extra)" : first.displayName
     }
 
     /// Scan roots for `fileIndex`/`symbolIndex`: the open project's folders when there

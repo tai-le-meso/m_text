@@ -70,6 +70,9 @@ private func projectMenu() -> NSMenu {
     let menu = NSMenu(title: "Project")
     menu.addItem(withTitle: "Open Folder…",
                  action: #selector(MainWindowController.openFolder(_:)), keyEquivalent: "")
+    // The second half of multi-folder windows: Open Folder… replaces, this appends.
+    menu.addItem(withTitle: "Add Folder to Project…",
+                 action: #selector(MainWindowController.addFolderToProject(_:)), keyEquivalent: "")
     menu.addItem(withTitle: "Switch Project…",
                  action: #selector(MainWindowController.switchProject(_:)), keyEquivalent: "")
     menu.addItem(withTitle: "Close Project",
