@@ -11,7 +11,7 @@ on:
       version:
         description: "Version to build (e.g. 1.0.0) — for a dry run without tagging"
         required: true
-        default: "1.0.0"
+        default: "1.0.1"
 
 permissions:
   contents: write   # needed to create the release and upload the DMG
@@ -90,6 +90,58 @@ jobs:
           # build, while the versioned file stays for anyone pinning a specific release.
           cp "$DMG" "build/m_text-macos-universal.dmg"
 
+      # Notes come from CHANGELOG.md so they are written and reviewed with the change that
+      # earned them, instead of being retyped into a workflow that cannot know what shipped.
+      # A tag with no matching section still releases — GitHub's generated commit list is
+      # then the whole body, which is a thin release note but never a wrong one.
+      - name: Assemble release notes
+        run: |
+          VERSION="${{ steps.v.outputs.version }}"
+          NOTES=build/RELEASE_NOTES.md
+          {
+            echo "## m_text $VERSION"
+            echo
+            echo "A native macOS text editor in pure Swift and AppKit — no Electron, no web view, no third-party dependencies."
+            echo
+          } > "$NOTES"
+
+          # The section between this version's heading and the next one.
+          if awk -v v="## $VERSION" '$0 == v {found=1; next} /^## /{found=0} found' CHANGELOG.md \
+               | grep -q '[^[:space:]]'; then
+            awk -v v="## $VERSION" '$0 == v {found=1; next} /^## /{found=0} found' CHANGELOG.md >> "$NOTES"
+          else
+            echo "::warning::CHANGELOG.md has no section for $VERSION — falling back to generated notes"
+          fi
+
+          cat >> "$NOTES" <<EOF
+
+          ### Install
+
+          Download \`m_text-$VERSION.dmg\`, open it, and drag **m_text** to Applications.
+          Universal: Apple Silicon and Intel. Requires macOS 13 or later.
+
+          ### ⚠️ First launch
+
+          This build is **ad-hoc signed only**, not signed with a Developer ID or notarised —
+          both need a paid Apple Developer account. Gatekeeper will therefore refuse it on
+          first launch with *"m_text cannot be opened because the developer cannot be
+          verified"*. To open it anyway: **right-click the app → Open → Open**, or run:
+
+          \`\`\`
+          xattr -dr com.apple.quarantine /Applications/m_text.app
+          \`\`\`
+
+          See [DISTRIBUTION.md](https://github.com/tai-le-meso/m_text/blob/main/DISTRIBUTION.md)
+          for what proper signing and notarisation would involve.
+
+          ### Verify your download
+
+          \`\`\`
+          shasum -a 256 -c m_text-$VERSION.dmg.sha256
+          \`\`\`
+          EOF
+          echo "── assembled notes ──"; cat "$NOTES"
+
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
         with:
@@ -112,32 +164,4 @@ jobs:
             build/m_text-${{ steps.v.outputs.version }}.dmg
             build/m_text-${{ steps.v.outputs.version }}.dmg.sha256
             build/m_text-macos-universal.dmg
-          body: |
-            ## m_text ${{ steps.v.outputs.version }}
-
-            A native macOS text editor in pure Swift and AppKit — no Electron, no web view,
-            no third-party dependencies.
-
-            **Download** `m_text-${{ steps.v.outputs.version }}.dmg`, open it, and drag
-            **m_text** to Applications. Universal: Apple Silicon and Intel.
-
-            ### ⚠️ First launch
-
-            This build is **ad-hoc signed only**, not signed with a Developer ID or notarised
-            — both need a paid Apple Developer account. Gatekeeper will therefore refuse it
-            on first launch with *"m_text cannot be opened because the developer cannot be
-            verified"*. To open it anyway:
-
-            **right-click the app → Open → Open**, or run:
-
-            ```
-            xattr -dr com.apple.quarantine /Applications/m_text.app
-            ```
-
-            See `DISTRIBUTION.md` for what proper signing and notarisation would involve.
-
-            ### Verify your download
-
-            ```
-            shasum -a 256 -c m_text-${{ steps.v.outputs.version }}.dmg.sha256
-            ```
+          body_path: build/RELEASE_NOTES.md

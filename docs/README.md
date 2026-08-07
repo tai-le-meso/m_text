@@ -40,8 +40,10 @@ changes:
   release notes in `.github/workflows/release.yml`. They are only correct while builds are
   ad-hoc signed — once Developer ID signing and notarisation land, delete the callout from
   both places.
-- **The release card** (`v1.0.0`, date, size, what's in it) is static. Update it when you cut
-  a release, or replace it with a fetch from the GitHub API.
+- **The release card** (version, date, what's in it) is static, as is the version label under
+  the download button and the filenames in the install and checksum blocks. Update them when
+  you cut a release — `CHANGELOG.md` is the source to copy from — or replace the card with a
+  fetch from the GitHub API.
 
 Copy buttons strip `.p` (prompt), `.c` (comment) and `.o` (sample output) before writing to
 the clipboard, so what gets pasted is runnable. Mark any expected output with `.o` — without
