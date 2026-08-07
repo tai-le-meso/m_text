@@ -276,6 +276,13 @@ public final class MainWindowController: NSWindowController {
     public func smokeTestRemoveFolder(_ url: URL) { removeFolderFromProject(url) }
     public var smokeTestProjectFolderCount: Int { currentProject?.folders.count ?? 0 }
     public var smokeTestSidebarRootCount: Int { sidebar.smokeTestRootCount }
+    /// The sidebar's *on-screen* width. Row count alone passed happily while the sidebar
+    /// sat at zero width and the folder tree was invisible — which is precisely the bug
+    /// opening a folder had.
+    public var smokeTestSidebarWidth: CGFloat {
+        sidebar.isHiddenOrHasHiddenAncestor ? 0 : sidebar.frame.width
+    }
+    public func smokeTestToggleSidebar() { toggleSidebar(nil) }
     public var smokeTestSidebarRootNames: [String] { sidebar.smokeTestRootNames }
     public var smokeTestWindowTitle: String { window?.title ?? "" }
     /// Focused editor's text, for the smoke hook. Going through the controller rather than
@@ -292,6 +299,10 @@ public final class MainWindowController: NSWindowController {
 
     private let sidebar = Sidebar()
     private let sidebarSplitView = NSSplitView()
+    /// Width the sidebar returns to when shown. Remembered across hide/show within a
+    /// session so dragging the divider isn't undone by toggling.
+    private var sidebarWidth: CGFloat = 240
+    private static let minimumSidebarWidth: CGFloat = 160
     private let paneSplitView = NSSplitView()
 
     private let statusLabel = NSTextField(labelWithString: "")
@@ -1456,12 +1467,34 @@ public final class MainWindowController: NSWindowController {
 
     // MARK: - Sidebar (T82)
 
-    @objc public func toggleSidebar(_ sender: Any?) {
-        sidebar.isHidden.toggle()
-        // Belt-and-suspenders: `NSSplitView` is expected to treat a hidden arranged
-        // subview as collapsed (zero width, divider hidden) on its own, but forcing a
-        // relayout here costs nothing and removes any doubt about that timing.
+    /// Shows or hides the sidebar, and — the part that matters — gives it a width.
+    ///
+    /// **`adjustSubviews()` cannot do this on its own.** A classic `NSSplitView`
+    /// redistributes space *proportionally*, so a subview sitting at zero width stays at
+    /// zero: the sidebar unhid, the outline view populated, and nothing appeared. Opening a
+    /// folder looked like it did nothing at all. Exactly the failure `KNOWLEDGE.md` S2
+    /// records for "Split View Right", in the other split view.
+    private func setSidebarVisible(_ visible: Bool) {
+        if !visible, !sidebar.isHidden, sidebar.frame.width > 1 {
+            sidebarWidth = max(MainWindowController.minimumSidebarWidth, sidebar.frame.width)
+        }
+        sidebar.isHidden = !visible
         sidebarSplitView.adjustSubviews()
+        // Only when showing. `setPosition(0)` to hide does not work here: the delegate's
+        // `constrainMinCoordinate` clamps it up to the 160pt minimum *and* the split view
+        // treats being given a position as un-collapsing, so hiding left a 160pt strip.
+        // Hiding is `isHidden` plus `adjustSubviews`, which collapses it to zero on its own.
+        if visible {
+            sidebarSplitView.setPosition(sidebarWidth, ofDividerAt: 0)
+        }
+        sidebarSplitView.layoutSubtreeIfNeeded()
+    }
+
+    @objc public func toggleSidebar(_ sender: Any?) {
+        // A sidebar with no folders has nothing to show; toggling it open would give an
+        // empty column and no way to tell why.
+        guard currentProject?.folders.isEmpty == false else { return }
+        setSidebarVisible(sidebar.isHidden)
     }
 
     // MARK: - Session persistence (T84) and hot exit (T85)
@@ -1587,8 +1620,7 @@ public final class MainWindowController: NSWindowController {
         // `setProject` above already showed/hid the sidebar by whether the project has
         // folders; the session's explicit visibility (the user may have ⌘K⌘B'd it away)
         // wins — but never shows a sidebar with no project to list.
-        sidebar.isHidden = !(state.sidebarVisible && currentProject != nil)
-        sidebarSplitView.adjustSubviews()
+        setSidebarVisible(state.sidebarVisible && currentProject != nil)
         refreshChrome()
     }
 
@@ -1915,8 +1947,7 @@ public final class MainWindowController: NSWindowController {
     private func setProject(_ project: Project?) {
         currentProject = project
         sidebar.setFolders(project?.folders ?? [])
-        sidebar.isHidden = (project?.folders.isEmpty ?? true)
-        sidebarSplitView.adjustSubviews()
+        setSidebarVisible(!(project?.folders.isEmpty ?? true))
         // The project layer just moved (T86) — including on close, where dropping the
         // project must also drop whatever it was overriding.
         applySettingsToAllTabs()

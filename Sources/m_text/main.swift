@@ -689,6 +689,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
                 controller.smokeTestOpenFolders(Array(urls.prefix(2)))
                 controller.window?.layoutIfNeeded()
+                // Width, not just row count: the tree populated correctly while the split
+                // view left the sidebar at zero width, so opening a folder appeared to do
+                // nothing at all. Rows are invisible if the column is not there.
+                check(controller.smokeTestSidebarWidth > 100,
+                      "the sidebar is actually on screen "
+                      + "(width \(controller.smokeTestSidebarWidth))")
                 check(controller.smokeTestProjectFolderCount == 2,
                       "opening two folders makes a two-folder project "
                       + "(got \(controller.smokeTestProjectFolderCount))")
@@ -719,12 +725,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
                 // Removing the last root closes the project rather than leaving a window
                 // in a "project with no folders" state nothing else expects.
+                // Toggling must survive a round trip and keep a usable width.
+                controller.smokeTestToggleSidebar()
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestSidebarWidth == 0,
+                      "toggling hides it fully (width \(controller.smokeTestSidebarWidth))")
+                controller.smokeTestToggleSidebar()
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestSidebarWidth > 100,
+                      "and toggling back restores a usable width "
+                      + "(\(controller.smokeTestSidebarWidth))")
+
                 controller.smokeTestRemoveFolder(urls[0])
                 controller.smokeTestRemoveFolder(urls[2])
                 controller.window?.layoutIfNeeded()
                 check(controller.smokeTestProjectFolderCount == 0,
                       "removing the last folder closes the project "
                       + "(got \(controller.smokeTestProjectFolderCount))")
+                check(controller.smokeTestSidebarWidth == 0,
+                      "and the sidebar goes with it (width \(controller.smokeTestSidebarWidth))")
             }
 
             run([
