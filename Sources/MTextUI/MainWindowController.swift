@@ -265,6 +265,19 @@ public final class MainWindowController: NSWindowController {
     }
     /// Loads a file into the focused tab, so the hook can exercise the baseline.
     public func smokeTestOpen(_ url: URL) { open(url: url) }
+
+    /// Multi-folder project hooks for `MTEXT_SMOKE_TEST`. The sidebar's root count is read
+    /// from the outline view rather than from `Project`, so the check sees what is on screen
+    /// and not merely what the model believes.
+    public func smokeTestOpenFolders(_ urls: [URL]) { setProject(.adHoc(folders: urls)) }
+    public func smokeTestAddFolder(_ url: URL) {
+        setProject(currentProject.map { $0.adding(folder: url) } ?? .adHoc(folder: url))
+    }
+    public func smokeTestRemoveFolder(_ url: URL) { removeFolderFromProject(url) }
+    public var smokeTestProjectFolderCount: Int { currentProject?.folders.count ?? 0 }
+    public var smokeTestSidebarRootCount: Int { sidebar.smokeTestRootCount }
+    public var smokeTestSidebarRootNames: [String] { sidebar.smokeTestRootNames }
+    public var smokeTestWindowTitle: String { window?.title ?? "" }
     /// Focused editor's text, for the smoke hook. Going through the controller rather than
     /// hunting the view tree: a pane holds one `EditorView` per tab, so "the first editor in
     /// this pane" is not necessarily the active one.
@@ -371,6 +384,7 @@ public final class MainWindowController: NSWindowController {
         // `workspace` above), so no `translatesAutoresizingMaskIntoConstraints = false`.
         sidebar.isHidden = true
         sidebar.onOpenFile = { [weak self] url in self?.open(url: url) }
+        sidebar.onRemoveFolder = { [weak self] url in self?.removeFolderFromProject(url) }
 
         sidebarSplitView.isVertical = true
         sidebarSplitView.dividerStyle = .thin
@@ -1499,9 +1513,10 @@ public final class MainWindowController: NSWindowController {
             if let fileURL = project.fileURL {
                 state.projectFilePath = fileURL.path
             } else {
-                // An ad hoc (Open Folder…) project has no file; its one folder is the
-                // whole identity.
-                state.adHocFolderPath = project.folders.first?.url.path
+                // An ad hoc (Open Folder…) project has no file; its folders are the whole
+                // identity — all of them. Storing only the first silently dropped every
+                // other root of a multi-folder window on restart.
+                state.adHocFolderPaths = project.folders.map { $0.url.path }
             }
         }
         return state
@@ -1531,8 +1546,11 @@ public final class MainWindowController: NSWindowController {
             // block launch" exists to avoid. A project file deleted between runs just
             // restores as no project.
             loadProject(from: URL(fileURLWithPath: path))
-        } else if let path = state.adHocFolderPath {
-            setProject(Project.adHoc(folder: URL(fileURLWithPath: path)))
+        } else {
+            // `restorableFolderPaths` folds in the pre-multi-folder field, so a session
+            // written by an older build still restores its folder.
+            let folders = state.restorableFolderPaths.map { URL(fileURLWithPath: $0) }
+            if !folders.isEmpty { setProject(Project.adHoc(folders: folders)) }
         }
 
         for (paneIndex, paneState) in state.panes.enumerated() {
@@ -1819,11 +1837,45 @@ public final class MainWindowController: NSWindowController {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
-        panel.allowsMultipleSelection = false
+        // Sublime opens as many folders as you pick into one window; picking one is just
+        // the common case of that, not a separate feature.
+        panel.allowsMultipleSelection = true
+        panel.message = "Choose one or more folders to open in this window"
+        panel.prompt = "Open"
         panel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
-            self?.setProject(.adHoc(folder: url))
+            guard response == .OK, !panel.urls.isEmpty else { return }
+            self?.setProject(.adHoc(folders: panel.urls))
         }
+    }
+
+    /// Project ▸ Add Folder to Project… — the other half of multi-folder windows. Adds to
+    /// whatever is open rather than replacing it, and starts a project if none is open, so
+    /// there is no state in which the command is a dead end.
+    @objc public func addFolderToProject(_ sender: Any?) {
+        guard let window else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = true
+        panel.message = "Choose one or more folders to add to this window"
+        panel.prompt = "Add"
+        panel.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .OK, !panel.urls.isEmpty else { return }
+            if let project = self.currentProject {
+                self.setProject(project.adding(folders: panel.urls))
+            } else {
+                self.setProject(.adHoc(folders: panel.urls))
+            }
+        }
+    }
+
+    /// Sidebar ▸ Remove Folder from Project. Removing the last root closes the project
+    /// outright, so the window does not sit in a "project with no folders" state that
+    /// nothing else here expects.
+    public func removeFolderFromProject(_ url: URL) {
+        guard let project = currentProject else { return }
+        let updated = project.removing(folder: url)
+        setProject(updated.folders.isEmpty ? nil : updated)
     }
 
     @objc public func switchProject(_ sender: Any?) {
@@ -1876,7 +1928,12 @@ public final class MainWindowController: NSWindowController {
     /// `Project?` so that's enforced at the call site instead of handled here.
     private func projectDisplayName(_ project: Project) -> String {
         if let fileURL = project.fileURL { return fileURL.deletingPathExtension().lastPathComponent }
-        return project.folders.first?.displayName ?? "m_text"
+        guard let first = project.folders.first else { return "m_text" }
+        // Sublime titles a multi-folder window after the first folder; the count is added
+        // so a window holding four roots doesn't look identical to one holding just that
+        // first folder.
+        let extra = project.folders.count - 1
+        return extra > 0 ? "\(first.displayName) +\(extra)" : first.displayName
     }
 
     /// Scan roots for `fileIndex`/`symbolIndex`: the open project's folders when there

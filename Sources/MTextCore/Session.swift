@@ -81,8 +81,15 @@ public struct SessionWindow: Codable, Equatable {
     public var frame: [Double]?
     /// Path of the `.sublime-project` file, when a real project was open.
     public var projectFilePath: String?
-    /// The folder of an ad hoc (Open Folder…) project, which has no file on disk.
+    /// The folders of an ad hoc (Open Folder…) project, which has no file on disk.
     /// Mutually exclusive with `projectFilePath`.
+    public var adHocFolderPaths: [String]
+
+    /// Single-folder form written by builds before multi-folder windows existed. Decoded so
+    /// an existing session still restores its folder, never written — `adHocFolderPaths` is
+    /// the field now. Optional-and-ignored-on-encode rather than a version bump, because a
+    /// bump makes `SessionStore.load` discard the whole session, which would throw away
+    /// every window and unsaved buffer over a field that migrates trivially.
     public var adHocFolderPath: String?
     public var sidebarVisible: Bool
     public var focusedPaneIndex: Int
@@ -90,16 +97,54 @@ public struct SessionWindow: Codable, Equatable {
 
     public init(frame: [Double]? = nil,
                 projectFilePath: String? = nil,
+                adHocFolderPaths: [String] = [],
                 adHocFolderPath: String? = nil,
                 sidebarVisible: Bool = false,
                 focusedPaneIndex: Int = 0,
                 panes: [SessionPane] = []) {
         self.frame = frame
         self.projectFilePath = projectFilePath
+        self.adHocFolderPaths = adHocFolderPaths
         self.adHocFolderPath = adHocFolderPath
         self.sidebarVisible = sidebarVisible
         self.focusedPaneIndex = focusedPaneIndex
         self.panes = panes
+    }
+
+    /// Every ad hoc folder to restore, newest format first and the legacy single folder
+    /// folded in. The one place that knows the old field exists.
+    public var restorableFolderPaths: [String] {
+        adHocFolderPaths.isEmpty ? [adHocFolderPath].compactMap { $0 } : adHocFolderPaths
+    }
+
+    // Decoded leniently: a session written by an older build has no `adHocFolderPaths` key
+    // at all, and a missing array must mean "empty", not "fail to decode this window".
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        frame = try c.decodeIfPresent([Double].self, forKey: .frame)
+        projectFilePath = try c.decodeIfPresent(String.self, forKey: .projectFilePath)
+        adHocFolderPaths = try c.decodeIfPresent([String].self, forKey: .adHocFolderPaths) ?? []
+        adHocFolderPath = try c.decodeIfPresent(String.self, forKey: .adHocFolderPath)
+        sidebarVisible = try c.decodeIfPresent(Bool.self, forKey: .sidebarVisible) ?? false
+        focusedPaneIndex = try c.decodeIfPresent(Int.self, forKey: .focusedPaneIndex) ?? 0
+        panes = try c.decodeIfPresent([SessionPane].self, forKey: .panes) ?? []
+    }
+
+    // `adHocFolderPath` is deliberately absent: the legacy field is read, never written, so
+    // it disappears from the file the first time a session is saved.
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(frame, forKey: .frame)
+        try c.encodeIfPresent(projectFilePath, forKey: .projectFilePath)
+        try c.encode(adHocFolderPaths, forKey: .adHocFolderPaths)
+        try c.encode(sidebarVisible, forKey: .sidebarVisible)
+        try c.encode(focusedPaneIndex, forKey: .focusedPaneIndex)
+        try c.encode(panes, forKey: .panes)
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case frame, projectFilePath, adHocFolderPaths, adHocFolderPath
+        case sidebarVisible, focusedPaneIndex, panes
     }
 }
 

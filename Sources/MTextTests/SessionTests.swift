@@ -17,7 +17,52 @@ enum SessionTests {
         ("buffers round-trip and keep exact text", testBufferRoundTrip),
         ("prune deletes stale buffers and keeps referenced ones", testPrune),
         ("readBuffer rejects names that could escape the directory", testBufferNameSafety),
+        ("every folder of a multi-folder window round-trips", testMultipleFoldersRoundTrip),
+        ("a session from an older build still restores its folder", testLegacySingleFolderMigrates),
+        ("the legacy field is not written back out", testLegacyFieldNotRewritten),
+        ("a window with no folders restores none", testNoFolders),
     ])
+
+    /// The regression this replaces: only `folders.first` was stored, so every other root of
+    /// a multi-folder window vanished on relaunch.
+    static func testMultipleFoldersRoundTrip() {
+        let window = SessionWindow(adHocFolderPaths: ["/tmp/a", "/tmp/b", "/tmp/c"])
+        let state = SessionState(version: 1, windows: [window])
+        let data = try! JSONEncoder().encode(state)
+        let decoded = try! JSONDecoder().decode(SessionState.self, from: data)
+        expectEqual(decoded.windows[0].adHocFolderPaths, ["/tmp/a", "/tmp/b", "/tmp/c"])
+        expectEqual(decoded.windows[0].restorableFolderPaths, ["/tmp/a", "/tmp/b", "/tmp/c"])
+    }
+
+    /// Sessions on disk predate `adHocFolderPaths`. Decoding must not fail and must not lose
+    /// the folder — a version bump would have discarded every window and unsaved buffer.
+    static func testLegacySingleFolderMigrates() {
+        let json = """
+        {"version":1,"windows":[{"adHocFolderPath":"/tmp/legacy","sidebarVisible":true,
+         "focusedPaneIndex":0,"panes":[]}]}
+        """
+        let decoded = try! JSONDecoder().decode(SessionState.self, from: Data(json.utf8))
+        let window = decoded.windows[0]
+        expectEqual(window.adHocFolderPaths, [], "the new field is genuinely absent")
+        expectEqual(window.restorableFolderPaths, ["/tmp/legacy"], "but the folder still restores")
+        expectTrue(window.sidebarVisible, "the rest of the window decodes normally")
+    }
+
+    /// The legacy key is read, never written, so it disappears on the first save rather than
+    /// lingering as a second source of truth.
+    static func testLegacyFieldNotRewritten() {
+        var window = SessionWindow(adHocFolderPaths: ["/tmp/a"])
+        window.adHocFolderPath = "/tmp/legacy"
+        let data = try! JSONEncoder().encode(SessionState(version: 1, windows: [window]))
+        let text = String(data: data, encoding: .utf8)!
+        expectFalse(text.contains("adHocFolderPath\""), "the old key is not encoded")
+        expectTrue(text.contains("adHocFolderPaths"))
+    }
+
+    static func testNoFolders() {
+        let window = SessionWindow(projectFilePath: "/tmp/x.sublime-project")
+        expectEqual(window.restorableFolderPaths, [], "a project-file window has no ad hoc folders")
+    }
 
     private static func makeTempDirectory() -> URL {
         let base = FileManager.default.temporaryDirectory

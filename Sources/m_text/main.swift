@@ -672,8 +672,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 controller.smokeTestFocusEditor()
             }
 
+            /// Phase 1 of "open folders like Sublime": several folders in one window.
+            /// Root count is read from the sidebar's outline view, not from the project
+            /// model, so a project that updated without the tree reloading still fails.
+            func multiFolderCheck() {
+                let base = URL(fileURLWithPath: NSTemporaryDirectory())
+                    .appendingPathComponent("m_text-folders-\(ProcessInfo.processInfo.processIdentifier)")
+                let names = ["alpha", "beta", "gamma"]
+                let urls = names.map { base.appendingPathComponent($0) }
+                for url in urls {
+                    try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+                    try? "hello".write(to: url.appendingPathComponent("file.txt"),
+                                       atomically: true, encoding: .utf8)
+                }
+                defer { try? FileManager.default.removeItem(at: base) }
+
+                controller.smokeTestOpenFolders(Array(urls.prefix(2)))
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestProjectFolderCount == 2,
+                      "opening two folders makes a two-folder project "
+                      + "(got \(controller.smokeTestProjectFolderCount))")
+                check(controller.smokeTestSidebarRootCount == 2,
+                      "and the sidebar shows two roots (got \(controller.smokeTestSidebarRootCount))")
+                check(controller.smokeTestSidebarRootNames == ["alpha", "beta"],
+                      "named after the folders (got \(controller.smokeTestSidebarRootNames))")
+
+                controller.smokeTestAddFolder(urls[2])
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestSidebarRootCount == 3,
+                      "Add Folder appends a third root (got \(controller.smokeTestSidebarRootCount))")
+
+                // Re-adding must not duplicate the row.
+                controller.smokeTestAddFolder(urls[0])
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestSidebarRootCount == 3,
+                      "adding a folder already open changes nothing "
+                      + "(got \(controller.smokeTestSidebarRootCount))")
+
+                controller.smokeTestRemoveFolder(urls[1])
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestSidebarRootNames == ["alpha", "gamma"],
+                      "Remove Folder drops just that root (got \(controller.smokeTestSidebarRootNames))")
+                check(controller.smokeTestWindowTitle.contains("+1"),
+                      "the title says how many extra folders are open "
+                      + "(got \(String(reflecting: controller.smokeTestWindowTitle)))")
+
+                // Removing the last root closes the project rather than leaving a window
+                // in a "project with no folders" state nothing else expects.
+                controller.smokeTestRemoveFolder(urls[0])
+                controller.smokeTestRemoveFolder(urls[2])
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestProjectFolderCount == 0,
+                      "removing the last folder closes the project "
+                      + "(got \(controller.smokeTestProjectFolderCount))")
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { multiFolderCheck() },
                 { commandPaletteTypingCheck() },
                 { appearanceMenuCheck() },
                 { appearanceCheck() },
