@@ -819,8 +819,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "but a plain file is not — a folder is the unit of work")
             }
 
+            /// The shell command is only useful if it is findable — the same lesson as the
+            /// appearance switch, which existed and was missed because nothing pointed at it.
+            func helpMenuCheck() {
+                guard let help = NSApp.mainMenu?.items
+                    .first(where: { $0.submenu?.title == "Help" })?.submenu else {
+                    check(false, "there is a Help menu")
+                    return
+                }
+                let titles = help.items.map(\.title)
+                check(titles.contains { $0.contains("Install") && $0.contains("mtext") },
+                      "Help offers to install the mtext command (got \(titles))")
+                check(titles.contains { $0.contains("Remove") && $0.contains("mtext") },
+                      "and to remove it again")
+                check(help.items.allSatisfy { $0.action != nil },
+                      "both are wired to an action")
+                // The script it installs has to be inside the bundle, or the command is
+                // unusable for anyone who downloaded the app rather than building it.
+                check(Bundle.main.url(forResource: "mtext", withExtension: nil) != nil
+                        || ProcessInfo.processInfo.environment["MTEXT_SMOKE_ALLOW_NO_BUNDLE"] != nil,
+                      "the mtext script ships inside the bundle")
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { helpMenuCheck() },
                 { dropCheck() },
                 { multiFolderCheck() },
                 { commandPaletteTypingCheck() },

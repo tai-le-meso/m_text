@@ -74,8 +74,10 @@ from the shell. Proper signing needs a paid Apple Developer account; see
 
 Open folders and files from the shell, the way `code .` does:
 
+Install it from the app — **Help ▸ Install “mtext” Shell Command…** — which needs no terminal
+and no admin rights. From a checkout, `make install-cli` does the same thing.
+
 ```bash
-make install-cli            # installs ~/.local/bin/mtext — no admin rights needed
 
 mtext .                     # open the current folder
 mtext ~/src ~/docs          # several folders in one window

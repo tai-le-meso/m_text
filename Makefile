@@ -88,6 +88,10 @@ bundle: $(BUILD_DEP) $(ICNS)
 	cp $(BINARY) $(BUNDLE)/Contents/MacOS/$(APP)
 	cp Resources/Info.plist $(BUNDLE)/Contents/Info.plist
 	cp $(ICNS) $(BUNDLE)/Contents/Resources/$(APP).icns
+	# Shipped inside the bundle so Help > Install Shell Command has something to install —
+	# it must not depend on a source checkout being present.
+	cp Tools/mtext $(BUNDLE)/Contents/Resources/mtext
+	chmod 0755 $(BUNDLE)/Contents/Resources/mtext
 	# Version lives in one place — $(VERSION) — rather than being edited by hand in the
 	# plist for every release and drifting from the tag.
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(BUNDLE)/Contents/Info.plist

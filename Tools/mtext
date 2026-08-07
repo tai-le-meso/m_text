@@ -31,6 +31,16 @@ USAGE
 
 BUNDLE_ID=io.mesoneer.mtext
 
+# Rewritten by Help ▸ Install Shell Command to the bundle it was installed from, so the
+# command points at *that* copy of m_text.app rather than guessing. Empty in the repo copy
+# and after `make install-cli`, where there is no single bundle to point at.
+#
+# It is a *preference*, not a pin: if that copy is later moved or deleted, the bundle-id
+# launch below still finds wherever m_text.app went. Baking in a hard path with no fallback
+# would turn "I moved the app" into "the command is broken".
+DEFAULT_APP=""
+
+
 # Where the app is — only needed for --version and the quarantine hint. Launching goes
 # through `open -b` (see the bottom of this script), which asks Launch Services and so works
 # wherever the app has been moved to, including a build sitting in a source tree.
@@ -39,6 +49,7 @@ BUNDLE_ID=io.mesoneer.mtext
 # last because Spotlight is not guaranteed to have indexed the location.
 find_app() {
     [ -n "${MTEXT_APP:-}" ] && { printf '%s' "$MTEXT_APP"; return 0; }
+    [ -n "$DEFAULT_APP" ] && [ -d "$DEFAULT_APP" ] && { printf '%s' "$DEFAULT_APP"; return 0; }
     for candidate in "/Applications/m_text.app" "$HOME/Applications/m_text.app" \
                      "$HOME/Desktop/m_text.app" "$HOME/Downloads/m_text.app"; do
         [ -d "$candidate" ] && { printf '%s' "$candidate"; return 0; }
@@ -75,6 +86,9 @@ fi
 launch() {
     if [ -n "${MTEXT_APP:-}" ]; then
         exec open -a "$MTEXT_APP" "$@"
+    fi
+    if [ -n "$DEFAULT_APP" ] && [ -d "$DEFAULT_APP" ]; then
+        exec open -a "$DEFAULT_APP" "$@"
     fi
     if open -b "$BUNDLE_ID" "$@" 2>/dev/null; then
         exit 0

@@ -454,9 +454,30 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       </p>
     </div>
 
+    <div class="note reveal" style="border-left-color:var(--keyword)">
+      <h3>⌨️ The <code>mtext</code> command</h3>
+      <p>
+        Open folders from the shell the way <code>code .</code> does. Install it from inside
+        the app — <strong>Help ▸ Install “mtext” Shell Command…</strong> — no terminal and no
+        admin rights needed. It installs to <code>~/.local/bin</code> and offers to add that
+        to your shell profile if it is not already on your <code>PATH</code>.
+      </p>
+      <div class="term" style="margin-top:14px">
+        <button class="copy" type="button" data-copy>Copy</button>
+<pre><span class="p">$</span> mtext .                  <span class="c"># open the current folder</span>
+<span class="p">$</span> mtext ~/src ~/docs       <span class="c"># several folders in one window</span>
+<span class="p">$</span> mtext notes.txt          <span class="c"># a file, created if it does not exist</span></pre>
+      </div>
+      <p style="margin-top:14px">
+        It points at the copy of m_text you installed it from, and falls back to finding the
+        app by bundle identifier if you move it later.
+      </p>
+    </div>
+
     <p class="lead reveal">
       Building from source needs only the Command Line Tools — there is no Xcode project, and
-      nothing is fetched from the network.
+      nothing is fetched from the network. <code>make install-cli</code> installs the same
+      command from a checkout.
     </p>
     <div class="term reveal">
       <button class="copy" type="button" data-copy>Copy</button>

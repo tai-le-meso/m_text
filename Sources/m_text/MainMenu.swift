@@ -20,6 +20,9 @@ func makeMainMenu() -> NSMenu {
     let window = windowMenu()
     NSApplication.shared.windowsMenu = window
     main.addItem(submenu(window, title: "Window"))
+    let help = helpMenu()
+    NSApplication.shared.helpMenu = help
+    main.addItem(submenu(help, title: "Help"))
     return main
 }
 
@@ -311,6 +314,17 @@ private func viewMenu() -> NSMenu {
                  action: #selector(EditorView.decreaseFontSize(_:)), keyEquivalent: "-")
     menu.addItem(withTitle: "Reset Font Size",
                  action: #selector(EditorView.resetFontSize(_:)), keyEquivalent: "0")
+    return menu
+}
+
+/// Where the shell command lives, so installing `mtext` needs no terminal and no source
+/// checkout — the script ships inside the bundle.
+private func helpMenu() -> NSMenu {
+    let menu = NSMenu(title: "Help")
+    menu.addItem(withTitle: "Install “mtext” Shell Command…",
+                 action: #selector(MainWindowController.installShellCommand(_:)), keyEquivalent: "")
+    menu.addItem(withTitle: "Remove “mtext” Shell Command",
+                 action: #selector(MainWindowController.uninstallShellCommand(_:)), keyEquivalent: "")
     return menu
 }
 

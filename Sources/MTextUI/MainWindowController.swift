@@ -1961,6 +1961,78 @@ public final class MainWindowController: NSWindowController {
         }
     }
 
+    /// Help ▸ Install Shell Command — writes `mtext` to ~/.local/bin, pointed at this app.
+    ///
+    /// Reports what happened in a sheet rather than silently: the point of moving this out of
+    /// `make install-cli` is that people who would not open a terminal can do it, and they
+    /// still have to be told when the PATH needs a line adding.
+    @objc public func installShellCommand(_ sender: Any?) {
+        guard let window else { return }
+        do {
+            let result = try ShellCommandInstaller.install()
+            let alert = NSAlert()
+            alert.alertStyle = .informational
+            alert.messageText = "Installed the “mtext” command"
+
+            guard result.needsPathEntry else {
+                alert.informativeText = """
+                    \(result.url.path)
+
+                    In a terminal, `mtext .` now opens the current folder in m_text.
+                    """
+                alert.addButton(withTitle: "Done")
+                alert.beginSheetModal(for: window)
+                return
+            }
+
+            alert.informativeText = """
+                \(result.url.path)
+
+                That folder is not on your PATH, so the shell cannot find `mtext` yet. \
+                m_text can add it to \(ShellCommandInstaller.profilePath) for you, or you \
+                can add this line yourself:
+
+                \(ShellCommandInstaller.pathLine)
+                """
+            alert.addButton(withTitle: "Add to My Shell Profile")
+            alert.addButton(withTitle: "Copy the Line")
+            alert.addButton(withTitle: "Not Now")
+            alert.beginSheetModal(for: window) { [weak self] response in
+                guard let self else { return }
+                switch response {
+                case .alertFirstButtonReturn:
+                    do {
+                        try ShellCommandInstaller.addToProfile()
+                        let done = NSAlert()
+                        done.messageText = "Added to \(ShellCommandInstaller.profilePath)"
+                        done.informativeText = "Open a new terminal, then run `mtext .`"
+                        done.beginSheetModal(for: window)
+                    } catch { self.showError(error) }
+                case .alertSecondButtonReturn:
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(ShellCommandInstaller.pathLine, forType: .string)
+                default:
+                    break
+                }
+            }
+        } catch {
+            showError(error)
+        }
+    }
+
+    @objc public func uninstallShellCommand(_ sender: Any?) {
+        guard let window else { return }
+        do {
+            try ShellCommandInstaller.uninstall()
+            try ShellCommandInstaller.removeFromProfile()
+            let alert = NSAlert()
+            alert.messageText = "Removed the “mtext” command"
+            alert.informativeText =
+                "The PATH line in \(ShellCommandInstaller.profilePath) was removed too, if present."
+            alert.beginSheetModal(for: window)
+        } catch { showError(error) }
+    }
+
     /// Sidebar ▸ Remove Folder from Project. Removing the last root closes the project
     /// outright, so the window does not sit in a "project with no folders" state that
     /// nothing else here expects.
