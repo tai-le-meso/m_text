@@ -206,6 +206,53 @@ h2 { font-size:clamp(1.7rem,3.6vw,2.5rem); letter-spacing:-.03em; margin:0 0 14p
 .term pre { margin:0; color:#F3F2F9; font:14px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace; }
 .term .p { color:#00A9E0; user-select:none; }
 .term .c { color:#9794A8; }
+/* Sample output, not a command — muted, and stripped by the copy button. */
+.term .o { color:#00C950; }
+.term { position:relative; }
+.copy {
+  position:absolute; top:12px; right:12px; z-index:2;
+  border:1px solid #2A2837; background:#211E2C; color:#F3F2F9;
+  font:500 12px/1 inherit; padding:6px 11px; border-radius:7px; cursor:pointer;
+  transition:background .2s, border-color .2s, color .2s;
+}
+.copy:hover { border-color:var(--primary-bright); }
+.copy.done { color:var(--string); border-color:var(--string); }
+
+/* ── Callout ─────────────────────────────────────────────────────────────── */
+.note {
+  border:1px solid var(--border); border-left:3px solid var(--number);
+  background:var(--surface); border-radius:var(--radius);
+  padding:22px 24px; margin:0 0 26px;
+}
+.note h3 { margin:0 0 10px; font-size:1.05rem; display:flex; align-items:center; gap:8px; }
+.note p { margin:0 0 12px; color:var(--muted); font-size:14.8px; }
+.note p:last-child { margin-bottom:0; }
+.note .quote {
+  border-left:2px solid var(--border); padding-left:12px; margin:12px 0;
+  color:var(--text); font-style:italic;
+}
+.note kbd {
+  font:600 12.5px/1 ui-monospace,Menlo,monospace; background:var(--surface-2);
+  border:1px solid var(--border); border-radius:5px; padding:3px 7px; white-space:nowrap;
+}
+
+/* ── Release card ────────────────────────────────────────────────────────── */
+.release {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:26px 28px;
+}
+.release-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px; }
+.tag {
+  font:600 13px/1 ui-monospace,Menlo,monospace; color:var(--on-primary);
+  background:var(--primary-fill); padding:6px 11px; border-radius:999px;
+}
+.pill {
+  font:500 12.5px/1 inherit; color:var(--muted);
+  border:1px solid var(--border); padding:6px 11px; border-radius:999px;
+}
+.release ul.what { margin:16px 0 0; padding-left:20px; color:var(--muted); font-size:14.8px; }
+.release ul.what li { margin:5px 0; }
+.release-links { display:flex; gap:10px; flex-wrap:wrap; margin-top:22px; }
 
 /* ── Entrance + reveal ──────────────────────────────────────────────────────
    **No entrance effect may rely on an animation's fill mode to end visible.**
@@ -238,6 +285,7 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       <a href="#palette">Command palette</a>
       <a href="#engineering">Engineering</a>
       <a href="#install">Install</a>
+      <a href="#releases">Releases</a>
     </nav>
     <a class="btn btn-primary btn-sm" href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>Download</a>
     <div class="seg" role="group" aria-label="Appearance">
@@ -366,14 +414,40 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
     <p class="eyebrow reveal">Install</p>
     <h2 class="reveal">Download it, or build it yourself</h2>
     <p class="lead reveal">
-      The <a href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>latest DMG</a>
-      is universal and needs macOS 13 or later — open it and drag m_text to Applications.
-      It is ad-hoc signed rather than notarised, so the first launch needs
-      <strong>right-click ▸ Open</strong> once.
-      Building from source needs only the Command Line Tools; there is no Xcode project, and
+      A native macOS text editor in pure Swift and AppKit — no Electron, no web view, no
+      third-party dependencies. Download
+      <a href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download><code>m_text-1.0.0.dmg</code></a>,
+      open it, and drag <strong>m_text</strong> to Applications. Universal: Apple Silicon and Intel.
+    </p>
+
+    <div class="note reveal">
+      <h3>⚠️ First launch</h3>
+      <p>
+        This build is <strong>ad-hoc signed only</strong> — not signed with a Developer ID and
+        not notarised. Both need a paid Apple Developer account. Gatekeeper will therefore
+        refuse it the first time you open it:
+      </p>
+      <p class="quote">“m_text cannot be opened because the developer cannot be verified.”</p>
+      <p>
+        To open it anyway: <strong>right-click the app → Open → Open</strong>. You only need to
+        do this once. Or clear the quarantine flag from a terminal:
+      </p>
+      <div class="term" style="margin-top:14px">
+        <button class="copy" type="button" data-copy>Copy</button>
+<pre><span class="p">$</span> xattr -dr com.apple.quarantine /Applications/m_text.app</pre>
+      </div>
+      <p style="margin-top:14px">
+        See <a href="https://github.com/tai-le-meso/m_text/blob/main/DISTRIBUTION.md">DISTRIBUTION.md</a>
+        for what proper signing and notarisation would involve.
+      </p>
+    </div>
+
+    <p class="lead reveal">
+      Building from source needs only the Command Line Tools — there is no Xcode project, and
       nothing is fetched from the network.
     </p>
     <div class="term reveal">
+      <button class="copy" type="button" data-copy>Copy</button>
 <pre><span class="p">$</span> git clone https://github.com/tai-le-meso/m_text.git
 <span class="p">$</span> cd m_text
 <span class="p">$</span> make            <span class="c"># builds build/m_text.app</span>
@@ -382,6 +456,61 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
 <span class="p">$</span> make dmg        <span class="c"># a distributable disk image</span></pre>
     </div>
   </section>
+
+  <section id="releases" class="wrap">
+    <p class="eyebrow reveal">Releases</p>
+    <h2 class="reveal">Current release</h2>
+    <p class="lead reveal">
+      Releases are cut from a git tag: pushing <code>v1.0.0</code> makes CI run the tests,
+      build a universal DMG, verify it mounts, and publish it. The tag is the only place the
+      version lives, so a published build cannot disagree with the tag it came from.
+    </p>
+
+    <div class="release reveal">
+      <div class="release-head">
+        <span class="tag">v1.0.0</span>
+        <span class="pill">7 August 2026</span>
+        <span class="pill">Universal · 2.65 MB</span>
+        <span class="pill">macOS 13+</span>
+      </div>
+      <p style="margin:10px 0 0;color:var(--muted);font-size:14.8px">
+        First release. Phases 1–7 complete.
+      </p>
+      <ul class="what">
+        <li>Multi-caret editing, TextMate grammars, Goto Anything and the command palette</li>
+        <li>Split panes, tabs, sessions and hot exit</li>
+        <li>Find and replace across a project, build systems, minimap, word wrap, folding</li>
+        <li>Spell check, diff gutter, inline annotations</li>
+        <li>The m_text brand identity with a three-state light/dark appearance</li>
+      </ul>
+      <div class="release-links">
+        <a class="btn btn-primary" href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>Download DMG</a>
+        <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text/releases/tag/v1.0.0">Release notes</a>
+        <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text/releases">All releases</a>
+      </div>
+    </div>
+
+    <p class="lead reveal" style="margin-top:26px">
+      Verify a download against its published checksum — both files sit side by side on the
+      release page:
+    </p>
+    <div class="term reveal">
+      <button class="copy" type="button" data-copy>Copy</button>
+<pre><span class="p">$</span> shasum -a 256 -c m_text-1.0.0.dmg.sha256
+<span class="o">m_text-1.0.0.dmg: OK</span></pre>
+    </div>
+
+    <p class="lead reveal" style="margin-top:26px">
+      More detail, if you need it:
+      <a href="https://github.com/tai-le-meso/m_text/blob/main/DISTRIBUTION.md">DISTRIBUTION.md</a>
+      (signing, notarisation, how the release workflow is put together),
+      <a href="https://github.com/tai-le-meso/m_text/blob/main/KNOWLEDGE.md">KNOWLEDGE.md</a>
+      (every bug solved here, symptom-first) and
+      <a href="https://github.com/tai-le-meso/m_text/blob/main/HANDOFF.md">HANDOFF.md</a>
+      (where the project stands).
+    </p>
+  </section>
+
 </main>
 
 <footer>
@@ -461,6 +590,26 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       if (t < 1) requestAnimationFrame(tick);
     })(performance.now());
   }
+
+  /* ── Copy buttons. The prompt markers are stripped so what lands on the clipboard is
+        the command itself, not "$ xattr ..." which would fail if pasted back. ── */
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const pre = btn.parentElement.querySelector('pre').cloneNode(true);
+      // `.p` prompts, `.c` comments and `.o` sample output are all removed: what lands on
+      // the clipboard has to be runnable, and copying "m_text-1.0.0.dmg: OK" as if it were
+      // a command is exactly the kind of thing nobody notices until they paste it.
+      pre.querySelectorAll('.p, .c, .o').forEach(n => n.remove());
+      const text = pre.textContent.split('\n').map(l => l.trim()).filter(Boolean).join('\n');
+      try {
+        await navigator.clipboard.writeText(text);
+        btn.textContent = 'Copied'; btn.classList.add('done');
+      } catch (e) {
+        btn.textContent = 'Press ⌘C';
+      }
+      setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1800);
+    });
+  });
 
   /* ── Command-palette demo: the real command list, the real ranking rule
         (subsequence match, prefix-and-word-boundary first). ── */

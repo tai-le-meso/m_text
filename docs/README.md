@@ -31,6 +31,22 @@ button breaks on the next release.
 
 The `v1.0.0` label next to it is static text — update it when you cut a release, or drop it.
 
+## Keeping the page truthful
+
+Two things on the page restate facts that live elsewhere, and will rot silently if the source
+changes:
+
+- **The first-launch instructions** (Gatekeeper, `xattr -dr com.apple.quarantine`) mirror the
+  release notes in `.github/workflows/release.yml`. They are only correct while builds are
+  ad-hoc signed — once Developer ID signing and notarisation land, delete the callout from
+  both places.
+- **The release card** (`v1.0.0`, date, size, what's in it) is static. Update it when you cut
+  a release, or replace it with a fetch from the GitHub API.
+
+Copy buttons strip `.p` (prompt), `.c` (comment) and `.o` (sample output) before writing to
+the clipboard, so what gets pasted is runnable. Mark any expected output with `.o` — without
+it the output line is copied as though it were a command.
+
 ## One rule if you edit the page
 
 **No entrance effect may decide whether content exists.** Everything is visible by default;
