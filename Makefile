@@ -62,19 +62,18 @@ screenshots:
 	@echo "Updated docs/assets — check the capture's colour/transparency report above"
 
 # The `mtext` shell command, so `mtext .` opens the current folder like `code .` does.
-# PREFIX is overridable for a ~/.local install: `make install-cli PREFIX=$$HOME/.local`.
-PREFIX ?= /usr/local
+#
+# Installs to ~/.local/bin, not /usr/local/bin: the latter is unwritable on a managed (MDM)
+# Mac, where `install` fails with "Permission denied" and there is no sudo to reach for.
+# ~/.local/bin needs no privileges. The installer adds it to your shell profile if it is not
+# already on PATH; `make install-cli PREFIX=/usr/local` still works if you have the rights.
+PREFIX ?= $(HOME)/.local
 
 install-cli:
-	@mkdir -p $(PREFIX)/bin
-	install -m 0755 Tools/mtext $(PREFIX)/bin/mtext
-	@echo "Installed $(PREFIX)/bin/mtext"
-	@case ":$$PATH:" in *":$(PREFIX)/bin:"*) ;; \
-		*) echo "warning: $(PREFIX)/bin is not on your PATH";; esac
+	@PREFIX=$(PREFIX) Tools/install-cli.sh
 
 uninstall-cli:
-	rm -f $(PREFIX)/bin/mtext
-	@echo "Removed $(PREFIX)/bin/mtext"
+	@PREFIX=$(PREFIX) Tools/install-cli.sh --uninstall
 
 icon: $(ICNS)
 

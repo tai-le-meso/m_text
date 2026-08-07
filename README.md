@@ -67,8 +67,7 @@ or `xattr -dr com.apple.quarantine`. Proper signing needs a paid Apple Developer
 Open folders and files from the shell, the way `code .` does:
 
 ```bash
-make install-cli            # installs /usr/local/bin/mtext
-                            # or: make install-cli PREFIX=$HOME/.local
+make install-cli            # installs ~/.local/bin/mtext — no admin rights needed
 
 mtext .                     # open the current folder
 mtext ~/src ~/docs          # several folders in one window
@@ -76,8 +75,16 @@ mtext notes.txt             # a file — created if it does not exist, like `cod
 mtext                       # just bring m_text to the front
 ```
 
+Installs to **`~/.local/bin`**, not `/usr/local/bin`: the latter is unwritable on a managed
+(MDM) Mac, where `install` fails with *Permission denied* and there is no sudo to reach for.
+If that directory is not already on your `PATH`, the installer adds it to your shell profile
+(`.zshrc`, `.bash_profile`, fish config, or `.profile`) inside a marked block — re-running
+replaces the block rather than stacking another copy, and `make uninstall-cli` removes both
+the command and the block. Use `--no-profile` to be told the line instead of having it added,
+or `make install-cli PREFIX=/usr/local` if you do have the rights.
+
 `MTEXT_APP` points it at a specific bundle; otherwise it looks in `/Applications`,
-`~/Applications`, then asks Launch Services. `make uninstall-cli` removes it.
+`~/Applications`, then asks Launch Services.
 
 ## Project files
 
