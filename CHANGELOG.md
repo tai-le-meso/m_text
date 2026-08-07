@@ -7,7 +7,7 @@ request like everything else and cannot drift from what shipped.
 **Add a section before tagging.** A tag with no matching section still releases — the notes
 just fall back to the auto-generated commit list.
 
-## Unreleased
+## 1.0.2
 
 ### Open folders like Sublime (phase 2)
 
