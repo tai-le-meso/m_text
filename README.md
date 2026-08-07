@@ -91,8 +91,10 @@ replaces the block rather than stacking another copy, and `make uninstall-cli` r
 the command and the block. Use `--no-profile` to be told the line instead of having it added,
 or `make install-cli PREFIX=/usr/local` if you do have the rights.
 
-`MTEXT_APP` points it at a specific bundle; otherwise it looks in `/Applications`,
-`~/Applications`, then asks Launch Services.
+It launches by **bundle identifier** (`open -b io.mesoneer.mtext`), so it finds m_text
+wherever you keep it — `/Applications`, your home folder, or a build sitting in a source
+tree — as long as macOS has seen it once. If Launch Services has never registered it, open it
+from Finder once, or set `MTEXT_APP=/path/to/m_text.app` to pin a specific bundle.
 
 ## Project files
 

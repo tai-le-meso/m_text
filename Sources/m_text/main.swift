@@ -7,6 +7,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controllers: [MainWindowController] = []
     private var sessionManager: SessionManager!
 
+    /// Paths that arrived before the session had been restored, and whether that has
+    /// happened yet.
+    ///
+    /// **`openFiles` is delivered *before* `applicationDidFinishLaunching` on a cold
+    /// launch** — measured: it arrives with `controllers.count == 0`. Acting on it there
+    /// built a window for the dropped folder, and the restore then prepended the session's
+    /// own windows, so a folder already in the session opened *twice*, in two windows. That
+    /// is what `mtext .` did on a fresh start. Holding the paths until the restore has run
+    /// lets them land in the restored window, where `Project.adding` de-duplicates them.
+    private var pendingOpenPaths: [String] = []
+    private var hasFinishedLaunching = false
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Before any window is restored, so the first editor is created already
         // themed rather than being built light and repainted a moment later.
@@ -34,6 +46,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controllers = restored + controllers
         } else if controllers.isEmpty {
             newWindow(nil)
+        }
+        hasFinishedLaunching = true
+        if !pendingOpenPaths.isEmpty {
+            let paths = pendingOpenPaths
+            pendingOpenPaths = []
+            application(NSApp, openFiles: paths)
         }
         InputDiagnostics.installMonitor()
         InputDiagnostics.dumpWindowRender()
@@ -908,6 +926,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Handling them one at a time would also open three windows instead of one window with
     /// three roots.
     func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        guard hasFinishedLaunching else {
+            // See `pendingOpenPaths`: acting now would create a window the session restore
+            // is about to duplicate.
+            pendingOpenPaths.append(contentsOf: filenames)
+            sender.reply(toOpenOrPrint: .success)
+            return
+        }
         var folders: [URL] = [], files: [URL] = []
         for name in filenames {
             let url = URL(fileURLWithPath: name)
