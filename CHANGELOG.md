@@ -7,6 +7,39 @@ request like everything else and cannot drift from what shipped.
 **Add a section before tagging.** A tag with no matching section still releases — the notes
 just fall back to the auto-generated commit list.
 
+## Unreleased
+
+### Open folders like Sublime (phase 2)
+
+- **Drag folders onto the window** — they join the project; dragged files open as tabs.
+- **Finder ▸ Open With**, `open -a m_text <folder>`, and folders dropped on the Dock icon.
+- **File ▸ Open Recent** — folders and project files, not individual documents.
+- Opening a file that is already open now focuses that tab instead of opening a second one.
+
+### The `mtext` shell command
+
+`mtext .` opens the current folder, like `code .`. Install it from **Help ▸ Install “mtext”
+Shell Command…** — no terminal, no admin rights. It goes to `~/.local/bin` (not
+`/usr/local/bin`, which is unwritable on a managed Mac) and offers to add that directory to
+your shell profile. The installed command points at the copy of m_text you installed it from,
+and falls back to locating the app by bundle identifier if you move it.
+
+### Project files are now `.mtext-project`
+
+`.sublime-project` files still open — the format is identical — but nothing writes that
+extension any more.
+
+### Fixed
+
+- `mtext .` opened the folder **twice** on a cold launch: macOS delivers the open request
+  before the session has been restored, so the folder got a window of its own and the restore
+  then added the session's. Requests that arrive early are now held until the restore is done.
+- The `mtext` command only looked for m_text.app in `/Applications` and `~/Applications`, so
+  keeping the app anywhere else broke it entirely.
+- **Gatekeeper instructions were wrong for macOS 15 and later**, where right-click ▸ Open no
+  longer works. Use System Settings ▸ Privacy & Security ▸ Open Anyway, or clear the
+  quarantine attribute.
+
 ## 1.0.1
 
 ### Open several folders in one window

@@ -25,7 +25,25 @@ public struct ProjectFolder: Equatable {
     }
 }
 
-/// A loaded `.sublime-project` file, or an ad hoc single-folder project synthesized by
+/// Which file extensions name a project, in one place so the picker, the drop handler, the
+/// Info.plist and the docs cannot drift apart.
+public enum ProjectFile {
+
+    /// The extension m_text calls its own, and the one it offers first.
+    public static let preferredExtension = "mtext-project"
+
+    /// `.sublime-project` is still opened. The format is identical — `ProjectParser` reads
+    /// both without branching — and reading Sublime's own files is the point of this editor,
+    /// so refusing a real Sublime project to enforce a rename would be a loss, not tidiness.
+    /// Nothing *writes* `.sublime-project`.
+    public static let openableExtensions = [preferredExtension, "sublime-project"]
+
+    public static func isProjectFile(_ url: URL) -> Bool {
+        openableExtensions.contains(url.pathExtension.lowercased())
+    }
+}
+
+/// A loaded project file, or an ad hoc single-folder project synthesized by
 /// "Open Folder…" (`Project.adHoc(folder:)`) when no project file exists at all.
 public struct Project: Equatable {
     /// `nil` for an ad hoc project — there's no file on disk to point at.

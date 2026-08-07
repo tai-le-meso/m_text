@@ -1,0 +1,141 @@
+#!/bin/sh
+# mtext — open folders and files in m_text from the shell, the way `code .` does.
+#
+#   mtext .              open the current folder
+#   mtext ~/src ~/docs   open several folders in one window
+#   mtext notes.txt      open a file (created if it does not exist, like `code`)
+#   mtext app.mtext-project
+#   mtext               just bring m_text to the front
+#
+# POSIX sh, no dependencies — the same rule the app itself follows.
+set -eu
+
+usage() {
+    cat <<'USAGE'
+mtext — open folders and files in m_text
+
+usage: mtext [path ...]
+
+  mtext .                 open the current folder
+  mtext ~/src ~/docs      open several folders in one window
+  mtext notes.txt         open a file, creating it if it does not exist
+  mtext                   bring m_text to the front
+
+options:
+  -h, --help      show this
+  -v, --version   print the version of the m_text that would be launched
+
+Set MTEXT_APP to point at a specific m_text.app.
+USAGE
+}
+
+BUNDLE_ID=io.mesoneer.mtext
+
+# Rewritten by Help ▸ Install Shell Command to the bundle it was installed from, so the
+# command points at *that* copy of m_text.app rather than guessing. Empty in the repo copy
+# and after `make install-cli`, where there is no single bundle to point at.
+#
+# It is a *preference*, not a pin: if that copy is later moved or deleted, the bundle-id
+# launch below still finds wherever m_text.app went. Baking in a hard path with no fallback
+# would turn "I moved the app" into "the command is broken".
+DEFAULT_APP=""
+
+
+# Where the app is — only needed for --version and the quarantine hint. Launching goes
+# through `open -b` (see the bottom of this script), which asks Launch Services and so works
+# wherever the app has been moved to, including a build sitting in a source tree.
+#
+# The path search is the fallback for a build Launch Services has never seen. `mdfind` is
+# last because Spotlight is not guaranteed to have indexed the location.
+find_app() {
+    [ -n "${MTEXT_APP:-}" ] && { printf '%s' "$MTEXT_APP"; return 0; }
+    [ -n "$DEFAULT_APP" ] && [ -d "$DEFAULT_APP" ] && { printf '%s' "$DEFAULT_APP"; return 0; }
+    for candidate in "/Applications/m_text.app" "$HOME/Applications/m_text.app" \
+                     "$HOME/Desktop/m_text.app" "$HOME/Downloads/m_text.app"; do
+        [ -d "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+    done
+    found=$(mdfind "kMDItemCFBundleIdentifier == '$BUNDLE_ID'" 2>/dev/null | head -n 1 || true)
+    [ -n "$found" ] && [ -d "$found" ] && { printf '%s' "$found"; return 0; }
+    return 1
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+esac
+
+# Checked here, not inside `find_app`: that runs in a `$(...)` subshell, where `exit`
+# only ends the subshell — the script carried on and printed the generic "set MTEXT_APP"
+# advice to someone who had just set it.
+if [ -n "${MTEXT_APP:-}" ] && [ ! -d "$MTEXT_APP" ]; then
+    printf 'mtext: MTEXT_APP is set to %s, which does not exist\n' "$MTEXT_APP" >&2
+    exit 1
+fi
+
+APP=$(find_app || true)
+
+if [ "${1:-}" = "-v" ] || [ "${1:-}" = "--version" ]; then
+    [ -n "$APP" ] || { echo "mtext: could not locate m_text.app to read its version" >&2; exit 1; }
+    /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+    exit 0
+fi
+
+# Launch by bundle identifier, so wherever m_text.app has been moved to, Launch Services
+# finds it. `-a <path>` only works for the handful of paths this script knows to look in,
+# which broke the moment the app was kept anywhere else. MTEXT_APP still pins a specific
+# bundle when you need one.
+launch() {
+    if [ -n "${MTEXT_APP:-}" ]; then
+        exec open -a "$MTEXT_APP" "$@"
+    fi
+    if [ -n "$DEFAULT_APP" ] && [ -d "$DEFAULT_APP" ]; then
+        exec open -a "$DEFAULT_APP" "$@"
+    fi
+    if open -b "$BUNDLE_ID" "$@" 2>/dev/null; then
+        exit 0
+    fi
+    # Launch Services does not know it (never launched from Finder, say) — fall back to a
+    # path, and register it by launching from there.
+    [ -n "$APP" ] || {
+        echo "mtext: could not find m_text.app." >&2
+        echo "       Open it once from Finder, move it to /Applications," >&2
+        echo "       or set MTEXT_APP=/path/to/m_text.app" >&2
+        exit 1
+    }
+    exec open -a "$APP" "$@"
+}
+
+# No arguments: just bring the app forward.
+[ "$#" -eq 0 ] && launch
+
+# Create files that do not exist yet, like `code` does — otherwise `mtext newfile.txt` is
+# an error instead of the obvious thing. A missing *directory* is still an error: creating
+# a whole tree from a typo is not a favour.
+for arg in "$@"; do
+    case "$arg" in -*) continue ;; esac
+    [ -e "$arg" ] && continue
+    parent=$(dirname -- "$arg")
+    if [ ! -d "$parent" ]; then
+        printf 'mtext: no such directory: %s\n' "$parent" >&2
+        exit 1
+    fi
+    : > "$arg"
+done
+
+# A quarantined ad-hoc-signed build is refused by Gatekeeper, and from the shell that looks
+# like `mtext .` doing nothing at all — the dialog is the only clue, and on macOS 15+ it no
+# longer offers a way through. Say what to do rather than leaving it silent.
+if [ -n "$APP" ] && xattr -p com.apple.quarantine "$APP" >/dev/null 2>&1; then
+    cat >&2 <<QUARANTINE
+mtext: $APP is quarantined, so macOS may refuse to open it.
+       This build is ad-hoc signed, not notarised. To clear it:
+
+         xattr -dr com.apple.quarantine "$APP"
+
+       (On macOS 15+, right-click > Open no longer works; the alternative is
+        System Settings > Privacy & Security > Open Anyway.)
+
+QUARANTINE
+fi
+
+# `open` hands the paths to the app's openFiles, which sorts folders from files.
+launch "$@"

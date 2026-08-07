@@ -19,7 +19,20 @@ enum ProjectTests {
         ("removing a folder drops just that one", testRemovingFolder),
         ("adding and removing tolerate trailing slashes", testPathNormalisation),
         ("adding keeps a project file and its settings", testAddingPreservesIdentity),
+        ("m_text's own extension is preferred, Sublime's still opens", testProjectFileExtensions),
     ])
+
+    /// The rename is a *preference*, not a restriction: `.sublime-project` parses identically
+    /// and reading Sublime's own files is the point of this editor. Nothing writes it.
+    static func testProjectFileExtensions() {
+        expectEqual(ProjectFile.preferredExtension, "mtext-project")
+        expectEqual(ProjectFile.openableExtensions.first, "mtext-project", "ours is offered first")
+        expectTrue(ProjectFile.isProjectFile(url("/tmp/app.mtext-project")))
+        expectTrue(ProjectFile.isProjectFile(url("/tmp/app.sublime-project")), "still opens")
+        expectTrue(ProjectFile.isProjectFile(url("/tmp/App.MTEXT-PROJECT")), "case-insensitive")
+        expectFalse(ProjectFile.isProjectFile(url("/tmp/notes.txt")))
+        expectFalse(ProjectFile.isProjectFile(url("/tmp/thing.mtext-workspace")))
+    }
 
     private static func url(_ path: String) -> URL { URL(fileURLWithPath: path) }
 
@@ -90,7 +103,7 @@ enum ProjectTests {
     static func testRelativePaths() throws {
         let root = makeTempDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let projectFile = root.appendingPathComponent("Widgets.sublime-project")
+        let projectFile = root.appendingPathComponent("Widgets.mtext-project")
 
         let json = """
         {

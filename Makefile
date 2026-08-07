@@ -22,7 +22,7 @@ else
   BUILD_DEP := release
 endif
 
-.PHONY: all release universal bundle icon dmg run debug test test-release screenshots clean
+.PHONY: all release universal bundle icon dmg run debug test test-release screenshots install-cli uninstall-cli clean
 
 all: bundle
 
@@ -61,6 +61,20 @@ screenshots:
 	@sips -Z 1120 $(BUILDDIR)/shots/palette-dark.png --out docs/assets/palette-dark.png >/dev/null
 	@echo "Updated docs/assets — check the capture's colour/transparency report above"
 
+# The `mtext` shell command, so `mtext .` opens the current folder like `code .` does.
+#
+# Installs to ~/.local/bin, not /usr/local/bin: the latter is unwritable on a managed (MDM)
+# Mac, where `install` fails with "Permission denied" and there is no sudo to reach for.
+# ~/.local/bin needs no privileges. The installer adds it to your shell profile if it is not
+# already on PATH; `make install-cli PREFIX=/usr/local` still works if you have the rights.
+PREFIX ?= $(HOME)/.local
+
+install-cli:
+	@PREFIX=$(PREFIX) Tools/install-cli.sh
+
+uninstall-cli:
+	@PREFIX=$(PREFIX) Tools/install-cli.sh --uninstall
+
 icon: $(ICNS)
 
 $(ICNS): $(wildcard $(ICONSET)/*.png)
@@ -74,6 +88,10 @@ bundle: $(BUILD_DEP) $(ICNS)
 	cp $(BINARY) $(BUNDLE)/Contents/MacOS/$(APP)
 	cp Resources/Info.plist $(BUNDLE)/Contents/Info.plist
 	cp $(ICNS) $(BUNDLE)/Contents/Resources/$(APP).icns
+	# Shipped inside the bundle so Help > Install Shell Command has something to install —
+	# it must not depend on a source checkout being present.
+	cp Tools/mtext $(BUNDLE)/Contents/Resources/mtext
+	chmod 0755 $(BUNDLE)/Contents/Resources/mtext
 	# Version lives in one place — $(VERSION) — rather than being edited by hand in the
 	# plist for every release and drifting from the tag.
 	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(BUNDLE)/Contents/Info.plist

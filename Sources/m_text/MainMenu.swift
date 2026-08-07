@@ -20,6 +20,9 @@ func makeMainMenu() -> NSMenu {
     let window = windowMenu()
     NSApplication.shared.windowsMenu = window
     main.addItem(submenu(window, title: "Window"))
+    let help = helpMenu()
+    NSApplication.shared.helpMenu = help
+    main.addItem(submenu(help, title: "Help"))
     return main
 }
 
@@ -49,6 +52,13 @@ private func fileMenu() -> NSMenu {
     menu.addItem(withTitle: "New Tab", action: #selector(MainWindowController.newTab(_:)), keyEquivalent: "t")
     menu.addItem(withTitle: "New Window", action: #selector(AppDelegate.newWindow(_:)), keyEquivalent: "n")
     menu.addItem(withTitle: "Open…", action: #selector(MainWindowController.openDocument(_:)), keyEquivalent: "o")
+    // Populated as it opens by RecentProjectsMenu — folders and .sublime-project files, not
+    // individual documents, because a folder is this editor's unit of work.
+    let recent = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
+    let recentMenu = NSMenu(title: "Open Recent")
+    recentMenu.delegate = RecentProjectsMenu.shared
+    recent.submenu = recentMenu
+    menu.addItem(recent)
     menu.addItem(.separator())
     menu.addItem(withTitle: "Save", action: #selector(MainWindowController.saveDocument(_:)), keyEquivalent: "s")
     menu.addItem(item("Save As…", #selector(MainWindowController.saveDocumentAs(_:)), "s", [.command, .shift]))
@@ -304,6 +314,17 @@ private func viewMenu() -> NSMenu {
                  action: #selector(EditorView.decreaseFontSize(_:)), keyEquivalent: "-")
     menu.addItem(withTitle: "Reset Font Size",
                  action: #selector(EditorView.resetFontSize(_:)), keyEquivalent: "0")
+    return menu
+}
+
+/// Where the shell command lives, so installing `mtext` needs no terminal and no source
+/// checkout — the script ships inside the bundle.
+private func helpMenu() -> NSMenu {
+    let menu = NSMenu(title: "Help")
+    menu.addItem(withTitle: "Install “mtext” Shell Command…",
+                 action: #selector(MainWindowController.installShellCommand(_:)), keyEquivalent: "")
+    menu.addItem(withTitle: "Remove “mtext” Shell Command",
+                 action: #selector(MainWindowController.uninstallShellCommand(_:)), keyEquivalent: "")
     return menu
 }
 

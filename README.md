@@ -58,9 +58,51 @@ The tag is the only place the version lives — it is stamped into `Info.plist` 
 filename, so a published build cannot disagree with its tag. Locally: `make dmg
 UNIVERSAL=1 VERSION=1.0.0`.
 
-Builds are **ad-hoc signed only**, so Gatekeeper blocks the first launch — right-click ▸ Open,
-or `xattr -dr com.apple.quarantine`. Proper signing needs a paid Apple Developer account; see
+Builds are **ad-hoc signed only**, so Gatekeeper blocks the first launch. On **macOS 15 and
+later** right-click ▸ Open no longer works — open it once, then **System Settings ▸ Privacy &
+Security ▸ Open Anyway**. Simplest either way:
+
+```bash
+xattr -dr com.apple.quarantine ~/Applications/m_text.app
+```
+
+That is also the fix if `mtext .` fails to launch: a quarantined app is blocked the same way
+from the shell. Proper signing needs a paid Apple Developer account; see
 [`DISTRIBUTION.md`](DISTRIBUTION.md).
+
+## The `mtext` command
+
+Open folders and files from the shell, the way `code .` does:
+
+Install it from the app — **Help ▸ Install “mtext” Shell Command…** — which needs no terminal
+and no admin rights. From a checkout, `make install-cli` does the same thing.
+
+```bash
+
+mtext .                     # open the current folder
+mtext ~/src ~/docs          # several folders in one window
+mtext notes.txt             # a file — created if it does not exist, like `code`
+mtext                       # just bring m_text to the front
+```
+
+Installs to **`~/.local/bin`**, not `/usr/local/bin`: the latter is unwritable on a managed
+(MDM) Mac, where `install` fails with *Permission denied* and there is no sudo to reach for.
+If that directory is not already on your `PATH`, the installer adds it to your shell profile
+(`.zshrc`, `.bash_profile`, fish config, or `.profile`) inside a marked block — re-running
+replaces the block rather than stacking another copy, and `make uninstall-cli` removes both
+the command and the block. Use `--no-profile` to be told the line instead of having it added,
+or `make install-cli PREFIX=/usr/local` if you do have the rights.
+
+It launches by **bundle identifier** (`open -b io.mesoneer.mtext`), so it finds m_text
+wherever you keep it — `/Applications`, your home folder, or a build sitting in a source
+tree — as long as macOS has seen it once. If Launch Services has never registered it, open it
+from Finder once, or set `MTEXT_APP=/path/to/m_text.app` to pin a specific bundle.
+
+## Project files
+
+m_text writes and prefers **`.mtext-project`**. `.sublime-project` files still open — the
+format is identical and reading Sublime's own files is the point of this editor — but nothing
+writes that extension.
 
 ## Landing page
 

@@ -279,7 +279,7 @@ hand and via subagent instead, matching the rest of MTextUI. `SymbolExtractor`,
 | T80 | Tab bar (custom view): reorder, close, dirty dot, overflow menu | L | ✅ pulled forward, ahead of Phase 5 — see below |
 | T81 | Split panes: 2/3/4 columns, rows, grid; focus routing; move-tab-to-pane | L | ✅ scoped to single 2-pane split — see below |
 | T82 | Sidebar: NSOutlineView file tree, FSEvents refresh, rename/delete/new, reveal | L | ✅ |
-| T83 | Project model: .sublime-project folders + settings + excludes; Switch Project | M | ✅ |
+| T83 | Project model: `.mtext-project` (and `.sublime-project`) folders + settings + excludes; Switch Project | M | ✅ |
 | T84 | Session persistence: window frames, panes, tabs, cursors, scroll | M | ✅ |
 | T85 | Hot exit: unsaved buffers + undo stacks to disk (debounced autosave of state), silent quit, full restore | L | ✅ except undo stacks — see below |
 | T86 | Settings system: layered JSON-with-comments (default→user→syntax→project→view), live file-watch reload, "Preferences: Settings" opens side-by-side | L | ✅ |
