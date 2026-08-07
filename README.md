@@ -58,8 +58,16 @@ The tag is the only place the version lives — it is stamped into `Info.plist` 
 filename, so a published build cannot disagree with its tag. Locally: `make dmg
 UNIVERSAL=1 VERSION=1.0.0`.
 
-Builds are **ad-hoc signed only**, so Gatekeeper blocks the first launch — right-click ▸ Open,
-or `xattr -dr com.apple.quarantine`. Proper signing needs a paid Apple Developer account; see
+Builds are **ad-hoc signed only**, so Gatekeeper blocks the first launch. On **macOS 15 and
+later** right-click ▸ Open no longer works — open it once, then **System Settings ▸ Privacy &
+Security ▸ Open Anyway**. Simplest either way:
+
+```bash
+xattr -dr com.apple.quarantine ~/Applications/m_text.app
+```
+
+That is also the fix if `mtext .` fails to launch: a quarantined app is blocked the same way
+from the shell. Proper signing needs a paid Apple Developer account; see
 [`DISTRIBUTION.md`](DISTRIBUTION.md).
 
 ## The `mtext` command

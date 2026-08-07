@@ -81,5 +81,21 @@ for arg in "$@"; do
     : > "$arg"
 done
 
+# A quarantined ad-hoc-signed build is refused by Gatekeeper, and from the shell that looks
+# like `mtext .` doing nothing at all — the dialog is the only clue, and on macOS 15+ it no
+# longer offers a way through. Say what to do rather than leaving it silent.
+if xattr -p com.apple.quarantine "$APP" >/dev/null 2>&1; then
+    cat >&2 <<QUARANTINE
+mtext: $APP is quarantined, so macOS may refuse to open it.
+       This build is ad-hoc signed, not notarised. To clear it:
+
+         xattr -dr com.apple.quarantine "$APP"
+
+       (On macOS 15+, right-click > Open no longer works; the alternative is
+        System Settings > Privacy & Security > Open Anyway.)
+
+QUARANTINE
+fi
+
 # `open` hands the paths to the app's openFiles, which sorts folders from files.
 exec open -a "$APP" "$@"

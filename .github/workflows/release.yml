@@ -124,8 +124,19 @@ jobs:
 
           This build is **ad-hoc signed only**, not signed with a Developer ID or notarised —
           both need a paid Apple Developer account. Gatekeeper will therefore refuse it on
-          first launch with *"m_text cannot be opened because the developer cannot be
-          verified"*. To open it anyway: **right-click the app → Open → Open**, or run:
+          first launch:
+
+          > "Apple could not verify *m_text.app* is free of malware that may harm your Mac or
+          > compromise your privacy." (macOS 15+)
+          > "m_text cannot be opened because the developer cannot be verified." (macOS 14 and earlier)
+
+          **On macOS 15 (Sequoia) and later, right-click → Open no longer works** — Apple
+          removed that route. Open the app once, then go to **System Settings → Privacy &
+          Security**, scroll to Security, and click **Open Anyway**. On macOS 14 and earlier,
+          right-click → Open → Open still works.
+
+          Or clear it from a terminal, which is also what you want if you launch with
+          \`mtext\`, since a blocked app fails the same way from the shell:
 
           \`\`\`
           xattr -dr com.apple.quarantine /Applications/m_text.app

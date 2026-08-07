@@ -32,10 +32,22 @@ opens with the layout people expect: drag the app onto the shortcut.
 `make bundle` **ad-hoc signs** (`codesign --sign -`). That is enough to run the app on the
 machine that built it, and nothing more.
 
-**On anyone else's Mac, Gatekeeper will refuse an ad-hoc signed app.** They would have to
-right-click → Open and confirm, or clear the quarantine attribute by hand. To ship
-properly you need a Developer ID certificate and Apple's notary service — both require an
-Apple Developer account (paid) and network access, which is why neither is wired into the
+**On anyone else's Mac, Gatekeeper will refuse an ad-hoc signed app.** What they see, and
+what actually works, depends on the macOS version — and the advice everyone reflexively gives
+is now wrong:
+
+- **macOS 15 (Sequoia) and later** — *"Apple could not verify m_text.app is free of malware…"*.
+  **Right-click → Open no longer works**; Apple removed that route. The user must attempt to
+  open the app, then go to **System Settings → Privacy & Security → Open Anyway**.
+- **macOS 14 and earlier** — *"m_text cannot be opened because the developer cannot be
+  verified"*, and right-click → Open → Open does work.
+
+Either way, `xattr -dr com.apple.quarantine <app>` clears it. That is also the fix when
+`mtext .` appears to do nothing: a quarantined app is blocked identically from the shell, and
+there is no dialog to click through.
+
+To ship properly you need a Developer ID certificate and Apple's notary service — both require
+an Apple Developer account (paid) and network access, which is why neither is wired into the
 build here.
 
 When you have those, the steps are:
@@ -114,8 +126,8 @@ Verified in the workflow, each an explicit failure rather than a hopeful step:
 
 It **cannot** make the download open cleanly on someone else's Mac. The build is ad-hoc
 signed; Developer ID signing and notarisation both need a paid Apple account and secrets in
-the repo. Until then the release notes tell people to right-click ▸ Open. Everything needed
-to add it later is above.
+the repo. Until then the release notes carry the version-specific unblock instructions above.
+Everything needed to add it later is documented here.
 
 ### Why the universal build looks the way it does
 

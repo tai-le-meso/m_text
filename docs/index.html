@@ -425,12 +425,24 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       <p>
         This build is <strong>ad-hoc signed only</strong> — not signed with a Developer ID and
         not notarised. Both need a paid Apple Developer account. Gatekeeper will therefore
-        refuse it the first time you open it:
+        refuse it the first time you open it, with one of:
       </p>
-      <p class="quote">“m_text cannot be opened because the developer cannot be verified.”</p>
+      <p class="quote">
+        “Apple could not verify <em>m_text.app</em> is free of malware that may harm your Mac
+        or compromise your privacy.” <span style="opacity:.75">(macOS 15 and later)</span><br>
+        “m_text cannot be opened because the developer cannot be verified.”
+        <span style="opacity:.75">(macOS 14 and earlier)</span>
+      </p>
       <p>
-        To open it anyway: <strong>right-click the app → Open → Open</strong>. You only need to
-        do this once. Or clear the quarantine flag from a terminal:
+        <strong>On macOS 15 (Sequoia) and later</strong>, right-click ▸ Open no longer works
+        for this — Apple removed that route. Try to open the app once, then go to
+        <strong>System&nbsp;Settings ▸ Privacy&nbsp;&amp;&nbsp;Security</strong>, scroll to
+        Security, and click <strong>Open Anyway</strong>. On macOS 14 and earlier,
+        right-click ▸ Open ▸ Open still does it.
+      </p>
+      <p>
+        Either way, one terminal command clears it for good — and it is what you want if you
+        launch with <code>mtext</code>, since a blocked app fails the same way from the shell:
       </p>
       <div class="term" style="margin-top:14px">
         <button class="copy" type="button" data-copy>Copy</button>
