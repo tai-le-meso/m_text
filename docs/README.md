@@ -21,6 +21,16 @@ capture path is `cacheDisplay`, which `KNOWLEDGE.md` playbook §7 records as unr
 layer-backed tree, so **check that line before committing a shot** — anything reported
 `** UNUSABLE **` came back blank or uniform and must not be shipped.
 
+## The download button
+
+It points at `releases/latest/download/m_text-macos-universal.dmg` — a **version-less** asset
+name published by `release.yml` alongside the versioned DMG. GitHub resolves
+`/releases/latest/download/<asset>` only for an exact filename, so linking
+`m_text-1.0.0.dmg` would 404 the moment 1.0.1 shipped. Keep publishing that copy, or the
+button breaks on the next release.
+
+The `v1.0.0` label next to it is static text — update it when you cut a release, or drop it.
+
 ## One rule if you edit the page
 
 **No entrance effect may decide whether content exists.** Everything is visible by default;

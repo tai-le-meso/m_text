@@ -120,6 +120,11 @@ h1 .accent {
 .btn-primary:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
 .btn-ghost { background:var(--surface); border-color:var(--border); color:var(--text); }
 .btn-ghost:hover { transform:translateY(-2px); border-color:var(--primary); }
+.btn-sm { padding:7px 14px; font-size:13.5px; border-radius:9px; }
+@media (max-width:600px) { .btn-sm { display:none; } }
+.dl-meta { margin:16px 0 0; color:var(--muted); font-size:13.5px; }
+.dl-meta a { color:var(--muted); }
+.dl-meta a:hover { color:var(--text); }
 
 /* ── Shot frame ─────────────────────────────────────────────────────────── */
 .shot-wrap { margin-top:52px; perspective:1600px; }
@@ -234,6 +239,7 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       <a href="#engineering">Engineering</a>
       <a href="#install">Install</a>
     </nav>
+    <a class="btn btn-primary btn-sm" href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>Download</a>
     <div class="seg" role="group" aria-label="Appearance">
       <button data-theme-btn="system" aria-pressed="true">System</button>
       <button data-theme-btn="light" aria-pressed="false">Light</button>
@@ -252,9 +258,19 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
       the syntax engine and the fuzzy matcher are all in the repo.
     </p>
     <div class="cta reveal">
-      <a class="btn btn-primary" href="#install">Get&nbsp;started</a>
+      <!-- Version-less asset name on purpose: /releases/latest/download/<asset> resolves
+           only for an exact filename, so linking the versioned DMG would 404 the moment the
+           next release ships. The workflow publishes this copy with every release. -->
+      <a class="btn btn-primary" href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>
+        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 12 5 5 5-5"/><path d="M5 21h14"/></svg>
+        Download for macOS
+      </a>
       <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text">View source</a>
     </div>
+    <p class="dl-meta reveal">
+      Universal — Apple Silicon &amp; Intel · macOS 13+ · <span id="dl-version">v1.0.0</span> ·
+      <a href="https://github.com/tai-le-meso/m_text/releases">all releases</a>
+    </p>
 
     <div class="shot-wrap reveal">
       <div class="shot" id="shot">
@@ -348,8 +364,15 @@ footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--mu
 
   <section id="install" class="wrap">
     <p class="eyebrow reveal">Install</p>
-    <h2 class="reveal">Clone it and run make</h2>
-    <p class="lead reveal">macOS 13 or later, and the Command Line Tools. There is no Xcode project, and nothing is fetched from the network.</p>
+    <h2 class="reveal">Download it, or build it yourself</h2>
+    <p class="lead reveal">
+      The <a href="https://github.com/tai-le-meso/m_text/releases/latest/download/m_text-macos-universal.dmg" download>latest DMG</a>
+      is universal and needs macOS 13 or later — open it and drag m_text to Applications.
+      It is ad-hoc signed rather than notarised, so the first launch needs
+      <strong>right-click ▸ Open</strong> once.
+      Building from source needs only the Command Line Tools; there is no Xcode project, and
+      nothing is fetched from the network.
+    </p>
     <div class="term reveal">
 <pre><span class="p">$</span> git clone https://github.com/tai-le-meso/m_text.git
 <span class="p">$</span> cd m_text

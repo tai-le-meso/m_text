@@ -83,6 +83,13 @@ jobs:
           ( cd build && shasum -a 256 "m_text-${{ steps.v.outputs.version }}.dmg" \
               | tee "m_text-${{ steps.v.outputs.version }}.dmg.sha256" )
 
+          # A second copy under a version-less name. GitHub serves
+          # /releases/latest/download/<asset> only for an exact filename, so a versioned
+          # asset alone means every download link rots the moment the next release ships.
+          # This gives the landing page one permanent URL that always points at the newest
+          # build, while the versioned file stays for anyone pinning a specific release.
+          cp "$DMG" "build/m_text-macos-universal.dmg"
+
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
         with:
@@ -90,6 +97,7 @@ jobs:
           path: |
             build/m_text-${{ steps.v.outputs.version }}.dmg
             build/m_text-${{ steps.v.outputs.version }}.dmg.sha256
+            build/m_text-macos-universal.dmg
           if-no-files-found: error
 
       - name: Publish the release
@@ -103,6 +111,7 @@ jobs:
           files: |
             build/m_text-${{ steps.v.outputs.version }}.dmg
             build/m_text-${{ steps.v.outputs.version }}.dmg.sha256
+            build/m_text-macos-universal.dmg
           body: |
             ## m_text ${{ steps.v.outputs.version }}
 
