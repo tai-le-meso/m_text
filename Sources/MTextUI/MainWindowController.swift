@@ -1947,9 +1947,9 @@ public final class MainWindowController: NSWindowController {
             folders.forEach { RecentProjectsMenu.shared.note($0) }
         }
         for file in files {
-            // A .sublime-project is a project, not a document. Opening it as text is
+            // A project file is a project, not a document. Opening it as text is
             // technically possible and never what anyone means by dropping one on a window.
-            if file.pathExtension.lowercased() == "sublime-project" {
+            if ProjectFile.isProjectFile(file) {
                 loadProject(from: file)
             } else {
                 open(url: file)
@@ -2728,8 +2728,9 @@ extension MainWindowController: NSWindowDelegate {
 
 extension MainWindowController: NSOpenSavePanelDelegate {
 
-    /// Enables the extensions this app opens through a picker — `.sublime-project` for
-    /// `switchProject` and `.sublime-macro` for `openMacro` (T94) — see the comment at
+    /// Enables the extensions this app opens through a picker — project files
+    /// (`.mtext-project`, and `.sublime-project` for compatibility) for `switchProject`, and
+    /// `.sublime-macro` for `openMacro` (T94) — see the comment at
     /// `switchProject` for why this is delegate-based rather than
     /// `allowedContentTypes`/`allowedFileTypes`. Directories must stay enabled regardless of
     /// extension (matching `SyntaxMenuController`'s own import panel) — otherwise
@@ -2742,7 +2743,8 @@ extension MainWindowController: NSOpenSavePanelDelegate {
     public func panel(_ sender: Any, shouldEnable url: URL) -> Bool {
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
         if values?.isDirectory == true { return true }
-        return ["sublime-project", "sublime-macro"].contains(url.pathExtension.lowercased())
+        return ProjectFile.openableExtensions.contains(url.pathExtension.lowercased())
+            || url.pathExtension.lowercased() == "sublime-macro"
     }
 }
 

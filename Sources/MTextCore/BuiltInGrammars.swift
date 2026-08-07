@@ -53,7 +53,7 @@ public enum BuiltInGrammars {
     ---
     name: JSON
     scope: source.json
-    file_extensions: [json, jsonc, sublime-settings, sublime-keymap, sublime-project, sublime-color-scheme, webmanifest]
+    file_extensions: [json, jsonc, sublime-settings, sublime-keymap, sublime-project, mtext-project, sublime-color-scheme, webmanifest]
     contexts:
       main:
         - match: '"'

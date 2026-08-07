@@ -62,7 +62,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T101 Spell check | ✅ (F6; suggestions not wired to a context menu — see TASKS.md) |
 | T105 Icon + DMG | ✅ (ad-hoc signed only — notarisation documented, not automated) |
 | T103 Phantoms | ✅ (single-row annotations; wired to build errors — see TASKS.md) |
-| Open folders | 🚧 phases 1–2 of 3 — multi-folder windows, drag & drop, Finder open, Open Recent |
+| Open folders | 🚧 phases 1–2 of 3 — multi-folder windows, drag & drop, Finder open, Open Recent, `mtext` CLI |
 | Branding | ✅ logo + light/dark brand palette, View ▸ Appearance (see `Resources/Branding/README.md`) |
 
 **Find in Files is usable**: ⇧⌘F prompts, sweeps the project, and streams results into a
@@ -87,7 +87,7 @@ since planning. Keep all three of those properties.
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **451 passed, 1609 assertions** — run, along with `swift build -c release`,
+Test status: **452 passed, 1616 assertions** — run, along with `swift build -c release`,
 as of the branding work.
 
 ### Landed recently

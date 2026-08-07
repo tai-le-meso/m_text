@@ -43,6 +43,17 @@
         </dict>
         <dict>
             <key>CFBundleTypeName</key>
+            <string>m_text Project</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>mtext-project</string>
+                <string>sublime-project</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
             <string>Text Document</string>
             <key>CFBundleTypeRole</key>
             <string>Editor</string>

@@ -22,7 +22,7 @@ else
   BUILD_DEP := release
 endif
 
-.PHONY: all release universal bundle icon dmg run debug test test-release screenshots clean
+.PHONY: all release universal bundle icon dmg run debug test test-release screenshots install-cli uninstall-cli clean
 
 all: bundle
 
@@ -60,6 +60,21 @@ screenshots:
 		sips -Z 1400 $(BUILDDIR)/shots/$$f.png --out docs/assets/$$f.png >/dev/null; done
 	@sips -Z 1120 $(BUILDDIR)/shots/palette-dark.png --out docs/assets/palette-dark.png >/dev/null
 	@echo "Updated docs/assets — check the capture's colour/transparency report above"
+
+# The `mtext` shell command, so `mtext .` opens the current folder like `code .` does.
+# PREFIX is overridable for a ~/.local install: `make install-cli PREFIX=$$HOME/.local`.
+PREFIX ?= /usr/local
+
+install-cli:
+	@mkdir -p $(PREFIX)/bin
+	install -m 0755 Tools/mtext $(PREFIX)/bin/mtext
+	@echo "Installed $(PREFIX)/bin/mtext"
+	@case ":$$PATH:" in *":$(PREFIX)/bin:"*) ;; \
+		*) echo "warning: $(PREFIX)/bin is not on your PATH";; esac
+
+uninstall-cli:
+	rm -f $(PREFIX)/bin/mtext
+	@echo "Removed $(PREFIX)/bin/mtext"
 
 icon: $(ICNS)
 

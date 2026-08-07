@@ -1,0 +1,85 @@
+#!/bin/sh
+# mtext — open folders and files in m_text from the shell, the way `code .` does.
+#
+#   mtext .              open the current folder
+#   mtext ~/src ~/docs   open several folders in one window
+#   mtext notes.txt      open a file (created if it does not exist, like `code`)
+#   mtext app.mtext-project
+#   mtext               just bring m_text to the front
+#
+# POSIX sh, no dependencies — the same rule the app itself follows.
+set -eu
+
+usage() {
+    cat <<'USAGE'
+mtext — open folders and files in m_text
+
+usage: mtext [path ...]
+
+  mtext .                 open the current folder
+  mtext ~/src ~/docs      open several folders in one window
+  mtext notes.txt         open a file, creating it if it does not exist
+  mtext                   bring m_text to the front
+
+options:
+  -h, --help      show this
+  -v, --version   print the version of the m_text that would be launched
+
+Set MTEXT_APP to point at a specific m_text.app.
+USAGE
+}
+
+# Where the app is. MTEXT_APP wins, then the usual install locations, then Launch
+# Services — which is what finds a build sitting in a source tree.
+find_app() {
+    [ -n "${MTEXT_APP:-}" ] && { printf '%s' "$MTEXT_APP"; return 0; }
+    for candidate in "/Applications/m_text.app" "$HOME/Applications/m_text.app"; do
+        [ -d "$candidate" ] && { printf '%s' "$candidate"; return 0; }
+    done
+    found=$(mdfind "kMDItemCFBundleIdentifier == 'io.mesoneer.mtext'" 2>/dev/null | head -n 1 || true)
+    [ -n "$found" ] && { printf '%s' "$found"; return 0; }
+    return 1
+}
+
+case "${1:-}" in
+    -h|--help) usage; exit 0 ;;
+esac
+
+# Checked here, not inside `find_app`: that runs in a `$(...)` subshell, where `exit`
+# only ends the subshell — the script carried on and printed the generic "set MTEXT_APP"
+# advice to someone who had just set it.
+if [ -n "${MTEXT_APP:-}" ] && [ ! -d "$MTEXT_APP" ]; then
+    printf 'mtext: MTEXT_APP is set to %s, which does not exist\n' "$MTEXT_APP" >&2
+    exit 1
+fi
+
+APP=$(find_app) || {
+    echo "mtext: could not find m_text.app." >&2
+    echo "       Move it to /Applications, or set MTEXT_APP=/path/to/m_text.app" >&2
+    exit 1
+}
+
+if [ "${1:-}" = "-v" ] || [ "${1:-}" = "--version" ]; then
+    /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+    exit 0
+fi
+
+# No arguments: just bring the app forward. `open -a` on its own does exactly that.
+[ "$#" -eq 0 ] && exec open -a "$APP"
+
+# Create files that do not exist yet, like `code` does — otherwise `mtext newfile.txt` is
+# an error instead of the obvious thing. A missing *directory* is still an error: creating
+# a whole tree from a typo is not a favour.
+for arg in "$@"; do
+    case "$arg" in -*) continue ;; esac
+    [ -e "$arg" ] && continue
+    parent=$(dirname -- "$arg")
+    if [ ! -d "$parent" ]; then
+        printf 'mtext: no such directory: %s\n' "$parent" >&2
+        exit 1
+    fi
+    : > "$arg"
+done
+
+# `open` hands the paths to the app's openFiles, which sorts folders from files.
+exec open -a "$APP" "$@"

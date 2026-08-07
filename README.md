@@ -62,6 +62,29 @@ Builds are **ad-hoc signed only**, so Gatekeeper blocks the first launch — rig
 or `xattr -dr com.apple.quarantine`. Proper signing needs a paid Apple Developer account; see
 [`DISTRIBUTION.md`](DISTRIBUTION.md).
 
+## The `mtext` command
+
+Open folders and files from the shell, the way `code .` does:
+
+```bash
+make install-cli            # installs /usr/local/bin/mtext
+                            # or: make install-cli PREFIX=$HOME/.local
+
+mtext .                     # open the current folder
+mtext ~/src ~/docs          # several folders in one window
+mtext notes.txt             # a file — created if it does not exist, like `code`
+mtext                       # just bring m_text to the front
+```
+
+`MTEXT_APP` points it at a specific bundle; otherwise it looks in `/Applications`,
+`~/Applications`, then asks Launch Services. `make uninstall-cli` removes it.
+
+## Project files
+
+m_text writes and prefers **`.mtext-project`**. `.sublime-project` files still open — the
+format is identical and reading Sublime's own files is the point of this editor — but nothing
+writes that extension.
+
 ## Landing page
 
 A GitHub Pages site lives in [`docs/`](docs/) — enable it under **Settings ▸ Pages ▸ Source:
