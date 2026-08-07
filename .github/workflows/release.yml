@@ -76,7 +76,12 @@ jobs:
           codesign --verify --strict "$MP/m_text.app"
           hdiutil detach "$MP"
 
-          shasum -a 256 "$DMG" | tee "$DMG.sha256"
+          # Written from inside build/, so the file records a bare filename. `shasum -a 256`
+          # embeds the path it was given, and a "build/m_text-x.y.z.dmg" entry makes the
+          # `shasum -c` command in the release notes fail for anyone who downloads the two
+          # files side by side — verified by downloading a published release and trying it.
+          ( cd build && shasum -a 256 "m_text-${{ steps.v.outputs.version }}.dmg" \
+              | tee "m_text-${{ steps.v.outputs.version }}.dmg.sha256" )
 
       - name: Upload build artefact
         uses: actions/upload-artifact@v4
