@@ -89,3 +89,45 @@ executable and no frameworks.
 
 `CFBundleShortVersionString` and `CFBundleVersion` live in `Resources/Info.plist` and are
 not currently bumped by the build. Update them there before cutting a release.
+
+---
+
+## Automated releases (CI/CD)
+
+`.github/workflows/release.yml` runs on any `v*` tag and does the whole job: tests, a
+universal DMG, verification, then a published GitHub Release with the DMG and its SHA-256.
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+`workflow_dispatch` builds the same artefact **without** publishing, for a dry run.
+
+### What it guarantees, and what it cannot
+
+Verified in the workflow, each an explicit failure rather than a hopeful step:
+
+- the binary really is universal (`lipo` reports both `arm64` and `x86_64`),
+- `CFBundleShortVersionString` equals the tag — a build can never claim a version it is not,
+- the bundle's signature verifies,
+- the DMG **mounts** and the app inside it verifies, so a corrupt image cannot ship.
+
+It **cannot** make the download open cleanly on someone else's Mac. The build is ad-hoc
+signed; Developer ID signing and notarisation both need a paid Apple account and secrets in
+the repo. Until then the release notes tell people to right-click ▸ Open. Everything needed
+to add it later is above.
+
+### Why the universal build looks the way it does
+
+`swift build --arch arm64 --arch x86_64` shells out to `xcbuild` and therefore needs **full
+Xcode**, which this project deliberately does not depend on. `make dmg UNIVERSAL=1` instead
+runs two `--triple` builds and joins them with `lipo`, which works with the Command Line
+Tools alone.
+
+### The UI smoke test is not a release gate
+
+CI runs `MTEXT_SMOKE_TEST` in a separate, non-blocking job. It drives a real `NSWindow`, and a
+CI runner is a headless session whose window-server behaviour differs from a desk — this
+project already has a documented case of exactly that (see `KNOWLEDGE.md` playbook §6). Its
+output is posted to the job summary for information; it must not be able to block a release
+on an environment quirk. `make test` (433 unit tests) *is* a gate.

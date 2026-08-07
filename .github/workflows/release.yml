@@ -1,0 +1,129 @@
+name: Release
+
+# Tag-driven: `git tag v1.0.0 && git push origin v1.0.0` cuts a release. The tag is the
+# single source of the version — it is stamped into the bundle's Info.plist and the DMG
+# filename, so a published build can never disagree with the tag it came from.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build (e.g. 1.0.0) — for a dry run without tagging"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: write   # needed to create the release and upload the DMG
+
+jobs:
+  dmg:
+    name: Build and publish DMG
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version from the tag
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          # Reject anything that is not x.y.z: a malformed version silently produces a DMG
+          # nobody can identify, and CFBundleShortVersionString has to be numeric.
+          if ! printf '%s' "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$VERSION' is not a x.y.z version (tag should look like v1.0.0)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building $VERSION"
+
+      - name: Unit tests
+        run: make test
+
+      # UNIVERSAL=1 builds arm64 and x86_64 separately and lipos them. A native-only DMG
+      # would simply refuse to launch on the other architecture, which is not something to
+      # discover after publishing.
+      - name: Build universal DMG
+        run: make dmg UNIVERSAL=1 VERSION=${{ steps.v.outputs.version }}
+
+      - name: Verify the artefact
+        run: |
+          set -e
+          APP=build/m_text.app
+          DMG=build/m_text-${{ steps.v.outputs.version }}.dmg
+
+          echo "── architectures ──"
+          lipo -info "$APP/Contents/MacOS/m_text"
+          lipo -info "$APP/Contents/MacOS/m_text" | grep -q "x86_64" \
+            && lipo -info "$APP/Contents/MacOS/m_text" | grep -q "arm64" \
+            || { echo "::error::binary is not universal"; exit 1; }
+
+          echo "── version matches the tag ──"
+          PLIST_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist")
+          [ "$PLIST_VERSION" = "${{ steps.v.outputs.version }}" ] \
+            || { echo "::error::plist says $PLIST_VERSION, tag says ${{ steps.v.outputs.version }}"; exit 1; }
+
+          echo "── signature ──"
+          codesign --verify --deep --strict "$APP"
+
+          echo "── the DMG actually mounts and holds the app ──"
+          MP=$(hdiutil attach "$DMG" -nobrowse -readonly | grep -o '/Volumes/.*' | head -1)
+          test -d "$MP/m_text.app" || { echo "::error::no app inside the DMG"; hdiutil detach "$MP"; exit 1; }
+          codesign --verify --strict "$MP/m_text.app"
+          hdiutil detach "$MP"
+
+          shasum -a 256 "$DMG" | tee "$DMG.sha256"
+
+      - name: Upload build artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: m_text-${{ steps.v.outputs.version }}-dmg
+          path: |
+            build/m_text-${{ steps.v.outputs.version }}.dmg
+            build/m_text-${{ steps.v.outputs.version }}.dmg.sha256
+          if-no-files-found: error
+
+      - name: Publish the release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          name: m_text ${{ steps.v.outputs.version }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            build/m_text-${{ steps.v.outputs.version }}.dmg
+            build/m_text-${{ steps.v.outputs.version }}.dmg.sha256
+          body: |
+            ## m_text ${{ steps.v.outputs.version }}
+
+            A native macOS text editor in pure Swift and AppKit — no Electron, no web view,
+            no third-party dependencies.
+
+            **Download** `m_text-${{ steps.v.outputs.version }}.dmg`, open it, and drag
+            **m_text** to Applications. Universal: Apple Silicon and Intel.
+
+            ### ⚠️ First launch
+
+            This build is **ad-hoc signed only**, not signed with a Developer ID or notarised
+            — both need a paid Apple Developer account. Gatekeeper will therefore refuse it
+            on first launch with *"m_text cannot be opened because the developer cannot be
+            verified"*. To open it anyway:
+
+            **right-click the app → Open → Open**, or run:
+
+            ```
+            xattr -dr com.apple.quarantine /Applications/m_text.app
+            ```
+
+            See `DISTRIBUTION.md` for what proper signing and notarisation would involve.
+
+            ### Verify your download
+
+            ```
+            shasum -a 256 -c m_text-${{ steps.v.outputs.version }}.dmg.sha256
+            ```

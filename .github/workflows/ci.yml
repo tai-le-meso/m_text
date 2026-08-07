@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    # macOS only, by definition — this is an AppKit app. Pinned rather than `-latest` so a
+    # runner image roll cannot change the toolchain under a release without a commit.
+    runs-on: macos-14
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain versions
+        run: |
+          swift --version
+          xcodebuild -version || true
+
+      # The project's own rule is that the tree builds clean in *both* configurations, and
+      # that warnings are checked for — not just errors (KNOWLEDGE.md, compile bug class 6).
+      # A warning is a build failure here, which is the only way that rule stays true.
+      - name: Build (debug) — no warnings allowed
+        run: |
+          set -o pipefail
+          swift build 2>&1 | tee build-debug.log
+          if grep -qE "warning:|error:" build-debug.log; then
+            echo "::error::debug build is not clean"
+            grep -E "warning:|error:" build-debug.log
+            exit 1
+          fi
+
+      - name: Build (release) — no warnings allowed
+        run: |
+          set -o pipefail
+          swift build -c release 2>&1 | tee build-release.log
+          if grep -qE "warning:|error:" build-release.log; then
+            echo "::error::release build is not clean"
+            grep -E "warning:|error:" build-release.log
+            exit 1
+          fi
+
+      # MTextTests is a plain executable using the hand-rolled MTextTestKit harness, because
+      # XCTest ships inside Xcode.app and this project builds with Command Line Tools alone.
+      - name: Unit tests
+        run: make test
+
+      - name: Build the app bundle
+        run: make bundle
+
+  # Separate and non-blocking on purpose. MTEXT_SMOKE_TEST drives a real NSWindow, and a CI
+  # runner is a headless session: window-server behaviour there is not the same as on a desk,
+  # and this project already has a documented case of it (a terminal-launched process is never
+  # frontmost, so macOS refuses key status — KNOWLEDGE.md playbook 6). Its result is reported
+  # for information; it must not be able to block a release on an environment quirk.
+  smoke:
+    name: UI smoke test (informational)
+    runs-on: macos-14
+    timeout-minutes: 20
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+      - name: Run smoke test
+        run: |
+          MTEXT_SMOKE_TEST=1 .build/debug/m_text 2>&1 | tee smoke.log || true
+          echo "### UI smoke test" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -30 smoke.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

@@ -2,12 +2,41 @@ APP      := m_text
 BUILDDIR := build
 BUNDLE   := $(BUILDDIR)/$(APP).app
 
-.PHONY: all release bundle icon dmg run debug test test-release screenshots clean
+# Stamped into the bundle's Info.plist and the DMG filename. CI passes the git tag
+# (`make dmg VERSION=1.2.3`); the default is what a local build produces.
+VERSION  ?= 1.0.0
+
+# `UNIVERSAL=1` builds an arm64 + x86_64 binary, which is what a release wants — a
+# native-only DMG simply will not launch on the other architecture.
+#
+# Built as two `--triple` builds joined with `lipo`, *not* `swift build --arch a --arch b`:
+# that form shells out to xcbuild and therefore needs full Xcode, while this project builds
+# with the Command Line Tools alone. Verified: the `--arch` form fails here with
+# "xcbuild executable ... does not exist", the `--triple` form succeeds.
+UNIVERSAL ?= 0
+ifeq ($(UNIVERSAL),1)
+  BINARY    := $(BUILDDIR)/$(APP)-universal
+  BUILD_DEP := universal
+else
+  BINARY    := .build/release/$(APP)
+  BUILD_DEP := release
+endif
+
+.PHONY: all release universal bundle icon dmg run debug test test-release screenshots clean
 
 all: bundle
 
 release:
 	swift build -c release
+
+universal:
+	swift build -c release --triple arm64-apple-macosx13.0
+	swift build -c release --triple x86_64-apple-macosx13.0
+	@mkdir -p $(BUILDDIR)
+	lipo -create -output $(BINARY) \
+		.build/arm64-apple-macosx/release/$(APP) \
+		.build/x86_64-apple-macosx/release/$(APP)
+	@lipo -info $(BINARY)
 
 # The app icon is the brand "Syntax stack" mark (direction 2d): a dark squircle, five
 # syntax-coloured token bars and a cyan caret. It ships as PNG pairs in
@@ -39,14 +68,19 @@ $(ICNS): $(wildcard $(ICONSET)/*.png)
 	iconutil -c icns $(ICONSET) -o $(ICNS)
 	@echo "Built $(ICNS) from $(ICONSET)"
 
-bundle: release $(ICNS)
+bundle: $(BUILD_DEP) $(ICNS)
 	rm -rf $(BUNDLE)
 	mkdir -p $(BUNDLE)/Contents/MacOS $(BUNDLE)/Contents/Resources
-	cp .build/release/$(APP) $(BUNDLE)/Contents/MacOS/$(APP)
+	cp $(BINARY) $(BUNDLE)/Contents/MacOS/$(APP)
 	cp Resources/Info.plist $(BUNDLE)/Contents/Info.plist
 	cp $(ICNS) $(BUNDLE)/Contents/Resources/$(APP).icns
+	# Version lives in one place — $(VERSION) — rather than being edited by hand in the
+	# plist for every release and drifting from the tag.
+	/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(VERSION)" $(BUNDLE)/Contents/Info.plist
+	/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $(VERSION)" $(BUNDLE)/Contents/Info.plist
+	# Signing must come last: it seals the bundle, so any edit after this invalidates it.
 	codesign --force --sign - $(BUNDLE)
-	@echo "Built $(BUNDLE)"
+	@echo "Built $(BUNDLE) ($(VERSION))"
 
 # Distributable disk image. `hdiutil` is part of macOS, so this needs nothing installed.
 # The staging folder gets an /Applications symlink so the DMG opens with the familiar
@@ -56,7 +90,7 @@ bundle: release $(ICNS)
 # refuse it on someone else's until it is signed with a Developer ID and notarised. See
 # DISTRIBUTION.md; both steps need an Apple Developer account and network access, so
 # neither is run here.
-DMG    := $(BUILDDIR)/$(APP).dmg
+DMG    := $(BUILDDIR)/$(APP)-$(VERSION).dmg
 STAGE  := $(BUILDDIR)/dmg
 
 dmg: bundle
@@ -64,7 +98,7 @@ dmg: bundle
 	mkdir -p $(STAGE)
 	cp -R $(BUNDLE) $(STAGE)/
 	ln -s /Applications $(STAGE)/Applications
-	hdiutil create -volname "$(APP)" -srcfolder $(STAGE) -ov -format UDZO $(DMG)
+	hdiutil create -volname "$(APP) $(VERSION)" -srcfolder $(STAGE) -ov -format UDZO $(DMG)
 	rm -rf $(STAGE)
 	@echo "Built $(DMG)"
 

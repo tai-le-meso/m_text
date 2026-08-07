@@ -44,6 +44,24 @@ Tests do **not** use XCTest — that ships inside Xcode.app, and this project bu
 tests with Command Line Tools alone. `Sources/MTextTestKit` is a small assertion
 harness and runner; `Sources/MTextTests` is a plain executable.
 
+## Releases
+
+Tagging cuts a release: GitHub Actions builds a **universal** (Apple Silicon + Intel) DMG,
+verifies it, and publishes it.
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The tag is the only place the version lives — it is stamped into `Info.plist` and the DMG
+filename, so a published build cannot disagree with its tag. Locally: `make dmg
+UNIVERSAL=1 VERSION=1.0.0`.
+
+Builds are **ad-hoc signed only**, so Gatekeeper blocks the first launch — right-click ▸ Open,
+or `xattr -dr com.apple.quarantine`. Proper signing needs a paid Apple Developer account; see
+[`DISTRIBUTION.md`](DISTRIBUTION.md).
+
 ## Landing page
 
 A GitHub Pages site lives in [`docs/`](docs/) — enable it under **Settings ▸ Pages ▸ Source:
