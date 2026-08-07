@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="utf-8">
+<!-- Set before any paint, so scroll-reveal starts hidden only when JS can undo it. -->
+<script>document.documentElement.classList.add('js')</script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>m_text — a native macOS text editor, built from scratch</title>
+<meta name="description" content="A Sublime Text-class editor for macOS in pure Swift and AppKit. No Electron, no dependencies, no Xcode project. Rope-backed storage, TextMate grammars, multi-caret editing.">
+<link rel="icon" href="assets/icon-256.png">
+<meta property="og:title" content="m_text — a native macOS text editor, built from scratch">
+<meta property="og:description" content="Pure Swift + AppKit. Zero dependencies. 433 tests.">
+<meta property="og:image" content="assets/editor-dark.png">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   Brand tokens — the same values the app ships, from Resources/Branding/
+   brand-tokens.json. Every text/background pair here measures >= 4.5:1.
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+  --bg:#F5F5F9; --surface:#FFFFFF; --surface-2:#F0F0F5; --border:#E7E7EF;
+  --text:#15131E; --muted:#6D6B7E;
+  --primary:#3B2A78; --primary-fill:#3B2A78; --primary-bright:#907ED2;
+  --on-primary:#FFFFFF; --primary-100:rgba(59,42,120,.10);
+  --keyword:#007FA8; --string:#008937; --number:#987000; --function:#C75200;
+  --type:#8B4EFF; --caret:#007FA8;
+  --shadow:0 1px 2px rgba(20,18,30,.04), 0 8px 24px rgba(20,18,30,.06);
+  --shadow-lg:0 2px 4px rgba(20,18,30,.05), 0 24px 64px rgba(20,18,30,.14);
+  --radius:14px;
+}
+:root[data-theme="dark"], :root[data-theme="system"].is-dark {
+  --bg:#0D0C13; --surface:#17151F; --surface-2:#211E2C; --border:#2A2837;
+  --text:#F3F2F9; --muted:#9794A8;
+  --primary:#8571CD; --primary-fill:#7D67C9; --primary-bright:#B7ABE2;
+  --on-primary:#FFFFFF; --primary-100:rgba(131,111,204,.16);
+  --keyword:#00A9E0; --string:#00C950; --number:#EFB000; --function:#FF6900;
+  --type:#955EFF; --caret:#00A9E0;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+  --shadow-lg:0 2px 4px rgba(0,0,0,.5), 0 24px 64px rgba(0,0,0,.55);
+}
+
+*,*::before,*::after { box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+@media (prefers-reduced-motion:reduce) {
+  html { scroll-behavior:auto; }
+  *,*::before,*::after { animation-duration:.001ms !important; transition-duration:.001ms !important; }
+}
+body {
+  margin:0; background:var(--bg); color:var(--text);
+  font:16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, system-ui, sans-serif;
+  -webkit-font-smoothing:antialiased;
+  transition:background .35s ease, color .35s ease;
+}
+a { color:inherit; }
+.wrap { width:min(1120px, 92vw); margin-inline:auto; }
+code, .mono { font-family:ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; }
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  position:sticky; top:0; z-index:50;
+  backdrop-filter:saturate(180%) blur(14px);
+  background:color-mix(in srgb, var(--bg) 82%, transparent);
+  border-bottom:1px solid transparent; transition:border-color .3s ease;
+}
+header.scrolled { border-bottom-color:var(--border); }
+.bar { display:flex; align-items:center; gap:14px; padding:12px 0; }
+.brand { display:flex; align-items:center; gap:10px; font-weight:650; letter-spacing:-.01em; }
+.brand img { width:28px; height:28px; border-radius:7px; }
+.spacer { flex:1; }
+.nav { display:flex; gap:22px; color:var(--muted); font-size:14.5px; }
+.nav a { text-decoration:none; transition:color .2s; }
+.nav a:hover { color:var(--text); }
+@media (max-width:760px) { .nav { display:none; } }
+
+/* Three-state appearance switch — the same model the app uses. */
+.seg {
+  display:inline-flex; padding:3px; gap:2px; border-radius:999px;
+  background:var(--surface-2); border:1px solid var(--border);
+}
+.seg button {
+  border:0; background:transparent; color:var(--muted); cursor:pointer;
+  font:500 12.5px/1 inherit; padding:6px 11px; border-radius:999px;
+  transition:background .22s ease, color .22s ease;
+}
+.seg button[aria-pressed="true"] { background:var(--primary); color:var(--on-primary); }
+.seg button:hover:not([aria-pressed="true"]) { color:var(--text); }
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+.hero { padding:76px 0 40px; text-align:center; position:relative; overflow:hidden; }
+.hero::before {
+  content:""; position:absolute; inset:-40% 20% auto; height:520px; z-index:-1;
+  background:radial-gradient(closest-side, var(--primary-100), transparent 72%);
+  filter:blur(8px);
+}
+.hero-icon {
+  width:96px; height:96px; border-radius:22px; box-shadow:var(--shadow-lg);
+}
+h1 {
+  font-size:clamp(2.4rem, 6vw, 4rem); line-height:1.04; letter-spacing:-.035em;
+  margin:22px 0 0; font-weight:700;
+}
+h1 .accent {
+  background:linear-gradient(100deg, var(--keyword), var(--primary-bright));
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+.caret {
+  display:inline-block; width:.09em; height:.92em; margin-left:.06em;
+  background:var(--caret); vertical-align:-.08em; animation:blink 1.15s steps(1) infinite;
+}
+@keyframes blink { 0%,49% {opacity:1;} 50%,100% {opacity:0;} }
+.tagline {
+  max-width:62ch; margin:18px auto 0; color:var(--muted); font-size:clamp(1rem,2.2vw,1.2rem);
+}
+.cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:30px; }
+.btn {
+  display:inline-flex; align-items:center; gap:8px; text-decoration:none;
+  padding:12px 22px; border-radius:11px; font-weight:600; font-size:15px;
+  border:1px solid transparent; transition:transform .18s ease, box-shadow .22s ease, background .22s;
+}
+.btn-primary { background:var(--primary-fill); color:var(--on-primary); box-shadow:var(--shadow); }
+.btn-primary:hover { transform:translateY(-2px); box-shadow:var(--shadow-lg); }
+.btn-ghost { background:var(--surface); border-color:var(--border); color:var(--text); }
+.btn-ghost:hover { transform:translateY(-2px); border-color:var(--primary); }
+
+/* ── Shot frame ─────────────────────────────────────────────────────────── */
+.shot-wrap { margin-top:52px; perspective:1600px; }
+.shot {
+  position:relative; border-radius:var(--radius); overflow:hidden;
+  border:1px solid var(--border); box-shadow:var(--shadow-lg); background:var(--surface);
+  transition:transform .5s cubic-bezier(.2,.7,.2,1);
+}
+.shot img { display:block; width:100%; height:auto; }
+.shot img.under { position:absolute; inset:0; opacity:0; transition:opacity .45s ease; }
+.shot.show-light img.under { opacity:1; }
+.chrome { display:flex; gap:7px; padding:10px 14px; background:var(--surface-2); border-bottom:1px solid var(--border); }
+.dot { width:11px; height:11px; border-radius:50%; }
+.shot-note { margin-top:14px; color:var(--muted); font-size:13.5px; text-align:center; }
+
+/* ── Sections ───────────────────────────────────────────────────────────── */
+section { padding:84px 0; }
+.eyebrow {
+  font:600 12.5px/1 inherit; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--keyword); margin-bottom:12px;
+}
+h2 { font-size:clamp(1.7rem,3.6vw,2.5rem); letter-spacing:-.03em; margin:0 0 14px; line-height:1.12; }
+.lead { color:var(--muted); max-width:60ch; margin:0 0 44px; font-size:1.05rem; }
+
+.grid { display:grid; gap:18px; grid-template-columns:repeat(auto-fit, minmax(268px,1fr)); }
+.card {
+  background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  padding:24px; transition:transform .3s cubic-bezier(.2,.7,.2,1), border-color .3s, box-shadow .3s;
+}
+.card:hover { transform:translateY(-4px); border-color:var(--primary); box-shadow:var(--shadow); }
+.card h3 { margin:0 0 8px; font-size:1.06rem; letter-spacing:-.01em; }
+.card p { margin:0; color:var(--muted); font-size:14.6px; }
+.ico {
+  width:38px; height:38px; border-radius:10px; display:grid; place-items:center;
+  background:var(--primary-100); margin-bottom:14px;
+}
+.ico svg { width:19px; height:19px; stroke:var(--primary); fill:none; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; }
+
+/* ── Stats ──────────────────────────────────────────────────────────────── */
+.stats { display:grid; gap:18px; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); }
+.stat { text-align:center; padding:26px 16px; border-radius:var(--radius);
+        background:var(--surface); border:1px solid var(--border); }
+.stat .n { font:700 clamp(1.9rem,4.4vw,2.7rem)/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+           letter-spacing:-.03em; color:var(--primary); }
+.stat .l { color:var(--muted); font-size:13.6px; margin-top:8px; }
+
+/* ── Palette demo ───────────────────────────────────────────────────────── */
+.demo-split { display:grid; gap:36px; grid-template-columns:1fr 1fr; align-items:center; }
+@media (max-width:900px) { .demo-split { grid-template-columns:1fr; } }
+.palette {
+  background:var(--surface-2); border:1px solid var(--border); border-radius:12px;
+  box-shadow:var(--shadow-lg); overflow:hidden;
+}
+.palette .q {
+  padding:15px 18px; font-size:17px; border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:2px; min-height:54px;
+}
+.palette .q .typed { white-space:pre; }
+.palette ul { list-style:none; margin:0; padding:6px; max-height:250px; overflow:auto; }
+.palette li {
+  padding:9px 12px; border-radius:7px; font-size:14.4px; display:flex;
+  justify-content:space-between; gap:12px; align-items:center;
+  /* No `both` fill: with it, a row holds the animation's `from` state (opacity 0)
+     whenever the animation doesn't actually run — a paused/backgrounded tab, a
+     throttled renderer — and the list is invisible. Without it the row renders
+     normally and the fade is purely an enhancement. */
+  animation:fadeIn .28s ease;
+}
+.palette li.sel { background:var(--primary-100); }
+.palette li .kbd { color:var(--muted); font-size:12px; font-family:ui-monospace,Menlo,monospace; }
+.palette mark { background:transparent; color:var(--keyword); font-weight:700; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(-4px);} to { opacity:1; transform:none;} }
+
+/* ── Install ────────────────────────────────────────────────────────────── */
+.term {
+  background:#0D0C13; border:1px solid #2A2837; border-radius:var(--radius);
+  padding:20px 22px; box-shadow:var(--shadow-lg); overflow-x:auto;
+}
+.term pre { margin:0; color:#F3F2F9; font:14px/1.9 ui-monospace,SFMono-Regular,Menlo,monospace; }
+.term .p { color:#00A9E0; user-select:none; }
+.term .c { color:#9794A8; }
+
+/* ── Entrance + reveal ──────────────────────────────────────────────────────
+   **No entrance effect may rely on an animation's fill mode to end visible.**
+   A CSS `animation ... both` freezes at its `from` state whenever the animation
+   does not actually run — a backgrounded tab at load, an embedded webview, a
+   preview crawler — which left this page rendering completely blank. Everything
+   here is therefore a *transition* switched by a class: if the transition never
+   animates, the element still ends in the final state.
+
+   Gated behind `.js`: without it every `.reveal` section would sit at
+   opacity 0 forever if the script fails, is blocked, or the page is rendered
+   as a static snapshot — i.e. the entire page below the hero would be blank.
+   Content is visible by default; the animation is the enhancement. */
+.js .reveal { opacity:0; transform:translateY(22px); transition:opacity .6s ease, transform .6s cubic-bezier(.2,.7,.2,1); }
+.js .reveal.in { opacity:1; transform:none; }
+@media (prefers-reduced-motion:reduce) { .js .reveal { opacity:1; transform:none; } }
+
+footer { border-top:1px solid var(--border); padding:40px 0 60px; color:var(--muted); font-size:14px; }
+.footer-row { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
+</style>
+</head>
+<body>
+
+<header id="hdr">
+  <div class="wrap bar">
+    <span class="brand"><img src="assets/icon-256.png" alt=""> m_text</span>
+    <span class="spacer"></span>
+    <nav class="nav">
+      <a href="#features">Features</a>
+      <a href="#palette">Command palette</a>
+      <a href="#engineering">Engineering</a>
+      <a href="#install">Install</a>
+    </nav>
+    <div class="seg" role="group" aria-label="Appearance">
+      <button data-theme-btn="system" aria-pressed="true">System</button>
+      <button data-theme-btn="light" aria-pressed="false">Light</button>
+      <button data-theme-btn="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <img class="hero-icon reveal" src="assets/icon-256.png" alt="m_text icon">
+    <h1 class="reveal">A native text editor,<br><span class="accent">built from scratch</span><span class="caret"></span></h1>
+    <p class="tagline reveal">
+      Sublime Text-class editing for macOS in <strong>pure Swift and AppKit</strong>.
+      No Electron, no web view, no third-party dependencies — the text rendering, the rope,
+      the syntax engine and the fuzzy matcher are all in the repo.
+    </p>
+    <div class="cta reveal">
+      <a class="btn btn-primary" href="#install">Get&nbsp;started</a>
+      <a class="btn btn-ghost" href="https://github.com/tai-le-meso/m_text">View source</a>
+    </div>
+
+    <div class="shot-wrap reveal">
+      <div class="shot" id="shot">
+        <div class="chrome">
+          <span class="dot" style="background:#FF5F57"></span>
+          <span class="dot" style="background:#FEBC2E"></span>
+          <span class="dot" style="background:#28C840"></span>
+        </div>
+        <img src="assets/editor-dark.png" alt="m_text editing Swift source in dark mode, with minimap and line numbers">
+        <img class="under" src="assets/editor-light.png" alt="The same editor in light mode">
+      </div>
+      <p class="shot-note">Real screenshots, captured from the running app — try the appearance switch above.</p>
+    </div>
+  </div>
+
+  <section id="features" class="wrap">
+    <p class="eyebrow reveal">What it does</p>
+    <h2 class="reveal">Everything you reach for, none of the weight</h2>
+    <p class="lead reveal">Phases 1–7 are complete: the editing core, syntax highlighting, find and replace across a project, panes, sessions, build systems and more.</p>
+    <div class="grid">
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h13"/></svg></div>
+        <h3>Multi-caret editing</h3>
+        <p>⌘D to add the next occurrence, column selection, split selection into lines — every command operates on every caret at once.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="m8 6-5 6 5 6M16 6l5 6-5 6"/></svg></div>
+        <h3>TextMate grammars</h3>
+        <p>A real oniguruma-style regex engine with scope selectors, so `.tmLanguage` and `.sublime-syntax` files highlight the way you expect.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></div>
+        <h3>Goto Anything</h3>
+        <p>⌘P for files, `@` for symbols, `:` for lines, `#` for text — the same fuzzy matcher ranks all of them.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></div>
+        <h3>Split panes &amp; tabs</h3>
+        <p>Two-pane splits with per-pane tabs, and a find bar that opens in the pane you are actually working in.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M5 8l7-5 7 5"/></svg></div>
+        <h3>Find in files</h3>
+        <p>Project-wide search streams into a results buffer; replace previews every change and refuses any file that moved since planning.</p>
+      </div>
+      <div class="card reveal">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>Hot exit</h3>
+        <p>Quit without prompts. Windows, panes, tabs, carets, scroll positions and unsaved buffers all come back.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="palette" class="wrap">
+    <div class="demo-split">
+      <div>
+        <p class="eyebrow reveal">Command palette</p>
+        <h2 class="reveal">Every command, one keystroke away</h2>
+        <p class="lead reveal">⌘⇧P lists all 117 commands, fuzzy-ranked as you type. ⌘P does the same for files. Try typing in the palette — it filters live.</p>
+        <div class="reveal">
+          <a class="btn btn-ghost" href="#" id="replay">▶ Replay the search</a>
+        </div>
+      </div>
+      <div class="palette reveal" id="pal">
+        <div class="q"><span class="typed" id="typed"></span><span class="caret"></span></div>
+        <ul id="rows"></ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="eyebrow reveal">Two panes, one window</p>
+    <h2 class="reveal">Split the view, keep the context</h2>
+    <p class="lead reveal">Each pane keeps its own tabs and its own find bar — searching on the left never jumps you to the right.</p>
+    <div class="shot reveal">
+      <img src="assets/split-dark.png" alt="m_text with the window split into two editor panes side by side">
+    </div>
+  </section>
+
+  <section id="engineering" class="wrap">
+    <p class="eyebrow reveal">Under the hood</p>
+    <h2 class="reveal">Built like it has to last</h2>
+    <p class="lead reveal">A rope-backed piece tree for storage, a generation counter driving every cache, and a hand-rolled test harness — because XCTest ships inside Xcode and this builds with Command Line Tools alone.</p>
+    <div class="stats">
+      <div class="stat reveal"><div class="n" data-count="433">0</div><div class="l">tests passing</div></div>
+      <div class="stat reveal"><div class="n" data-count="1574">0</div><div class="l">assertions</div></div>
+      <div class="stat reveal"><div class="n" data-count="0">0</div><div class="l">dependencies</div></div>
+      <div class="stat reveal"><div class="n" data-count="92">0</div><div class="l">UI smoke checks</div></div>
+    </div>
+  </section>
+
+  <section id="install" class="wrap">
+    <p class="eyebrow reveal">Install</p>
+    <h2 class="reveal">Clone it and run make</h2>
+    <p class="lead reveal">macOS 13 or later, and the Command Line Tools. There is no Xcode project, and nothing is fetched from the network.</p>
+    <div class="term reveal">
+<pre><span class="p">$</span> git clone https://github.com/tai-le-meso/m_text.git
+<span class="p">$</span> cd m_text
+<span class="p">$</span> make            <span class="c"># builds build/m_text.app</span>
+<span class="p">$</span> make run        <span class="c"># build and launch</span>
+<span class="p">$</span> make test       <span class="c"># 433 tests, no XCTest</span>
+<span class="p">$</span> make dmg        <span class="c"># a distributable disk image</span></pre>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <img src="assets/icon-256.png" alt="" style="width:22px;height:22px;border-radius:6px">
+    <span>m_text — pure Swift + AppKit, 100% offline.</span>
+    <span class="spacer"></span>
+    <span>Screenshots captured from the running app.</span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  const root = document.documentElement;
+
+  /* ── Appearance: three states, mirroring the app. "System" keeps following
+        the OS while the page is open, which a boolean toggle cannot express. */
+  const media = window.matchMedia('(prefers-color-scheme: dark)');
+  const buttons = [...document.querySelectorAll('[data-theme-btn]')];
+  const shot = document.getElementById('shot');
+
+  function apply(pref) {
+    root.dataset.theme = pref;
+    const dark = pref === 'dark' || (pref === 'system' && media.matches);
+    root.classList.toggle('is-dark', dark);
+    // The hero cross-fades between the two real screenshots, so the switch
+    // demonstrates the feature it is describing.
+    shot.classList.toggle('show-light', !dark);
+    buttons.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.themeBtn === pref)));
+    try { localStorage.setItem('mtext-theme', pref); } catch (e) {}
+  }
+  buttons.forEach(b => b.addEventListener('click', () => apply(b.dataset.themeBtn)));
+  media.addEventListener('change', () => { if (root.dataset.theme === 'system') apply('system'); });
+  let saved = 'system';
+  try { saved = localStorage.getItem('mtext-theme') || 'system'; } catch (e) {}
+  apply(saved);
+
+  /* ── Sticky header hairline ── */
+  const hdr = document.getElementById('hdr');
+  const onScroll = () => hdr.classList.toggle('scrolled', window.scrollY > 8);
+  addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+  /* ── Reveal on scroll ── */
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      // Stagger siblings so a grid arrives as a wave rather than all at once.
+      const peers = [...(el.parentElement?.children || [])].filter(n => n.classList.contains('reveal'));
+      el.style.transitionDelay = `${Math.min(peers.indexOf(el), 6) * 70}ms`;
+      el.classList.add('in');
+      io.unobserve(el);
+      if (el.classList.contains('stat')) countUp(el.querySelector('.n'));
+    });
+  }, { threshold: 0.15, rootMargin: '0px 0px -8% 0px' });
+  document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+  /* Safety net. An IntersectionObserver only fires for a page that is actually being
+     rendered — not in a backgrounded tab, an embedded webview, or a preview crawler.
+     Without this, "hidden until observed" means "hidden forever" in those cases, and the
+     page renders blank. Never let a visual enhancement decide whether content exists. */
+  const revealAll = () => document.querySelectorAll('.reveal').forEach(el => el.classList.add('in'));
+  setTimeout(revealAll, 2200);
+  addEventListener('pageshow', () => setTimeout(revealAll, 400), { once: true });
+
+  /* ── Animated stat counters ── */
+  function countUp(el) {
+    if (!el || el.dataset.done) return;
+    el.dataset.done = '1';
+    const target = +el.dataset.count;
+    if (target === 0) { el.textContent = '0'; return; }
+    const started = performance.now(), ms = 1100;
+    (function tick(now) {
+      const t = Math.min((now - started) / ms, 1);
+      const eased = 1 - Math.pow(1 - t, 3);
+      el.textContent = Math.round(target * eased).toLocaleString();
+      if (t < 1) requestAnimationFrame(tick);
+    })(performance.now());
+  }
+
+  /* ── Command-palette demo: the real command list, the real ranking rule
+        (subsequence match, prefix-and-word-boundary first). ── */
+  const COMMANDS = [
+    ['View: Appearance: System', ''], ['View: Appearance: Light', ''], ['View: Appearance: Dark', ''],
+    ['File: New Tab', '⌘T'], ['File: Save', '⌘S'], ['Edit: Undo', '⌘Z'],
+    ['Find: Find in Files…', '⇧⌘F'], ['Goto: Goto Anything…', '⌘P'],
+    ['View: Split View Right', ''], ['Edit: Toggle Comment', '⌘/'],
+    ['View: Minimap', ''], ['Build: Build', '⌘B'],
+  ];
+  const rows = document.getElementById('rows');
+  const typedEl = document.getElementById('typed');
+
+  function score(title, q) {
+    if (!q) return 0;
+    const t = title.toLowerCase(); let i = 0, hits = [];
+    for (const ch of q.toLowerCase()) {
+      const at = t.indexOf(ch, i);
+      if (at < 0) return null;
+      hits.push(at); i = at + 1;
+    }
+    return { indices: hits, gap: hits[hits.length - 1] - hits[0] };
+  }
+  function render(q) {
+    const scored = COMMANDS
+      .map(([title, key]) => ({ title, key, m: score(title, q) }))
+      .filter(r => r.m !== null)
+      .sort((a, b) => (a.m.gap ?? 0) - (b.m.gap ?? 0));
+    rows.innerHTML = '';
+    scored.slice(0, 6).forEach((r, idx) => {
+      const li = document.createElement('li');
+      if (idx === 0) li.className = 'sel';
+      const set = new Set(r.m ? r.m.indices : []);
+      const title = document.createElement('span');
+      [...r.title].forEach((ch, i) => {
+        const node = set.has(i) ? document.createElement('mark') : document.createTextNode('');
+        if (set.has(i)) { node.textContent = ch; title.appendChild(node); }
+        else title.appendChild(document.createTextNode(ch));
+      });
+      const kbd = document.createElement('span');
+      kbd.className = 'kbd'; kbd.textContent = r.key;
+      li.append(title, kbd);
+      rows.appendChild(li);
+    });
+    if (!scored.length) rows.innerHTML = '<li style="color:var(--muted)">No results</li>';
+  }
+
+  let timer = null;
+  function play(query = 'appear') {
+    clearTimeout(timer);
+    let i = 0;
+    typedEl.textContent = ''; render('');
+    (function step() {
+      typedEl.textContent = query.slice(0, ++i);
+      render(typedEl.textContent);
+      if (i < query.length) timer = setTimeout(step, 165);
+    })();
+  }
+  document.getElementById('replay').addEventListener('click', (e) => { e.preventDefault(); play(); });
+
+  // Only start once the palette is actually on screen.
+  new IntersectionObserver((entries, obs) => {
+    entries.forEach(e => { if (e.isIntersecting) { play(); obs.disconnect(); } });
+  }, { threshold: 0.4 }).observe(document.getElementById('pal'));
+  render('');
+})();
+</script>
+</body>
+</html>

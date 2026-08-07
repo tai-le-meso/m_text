@@ -1,0 +1,44 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:m_text}",
+            "name": "Debug m_text",
+            "target": "m_text",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug m_text"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:m_text}",
+            "name": "Release m_text",
+            "target": "m_text",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release m_text"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:m_text}",
+            "name": "Debug MTextTests",
+            "target": "MTextTests",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug MTextTests"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:m_text}",
+            "name": "Release MTextTests",
+            "target": "MTextTests",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release MTextTests"
+        }
+    ]
+}

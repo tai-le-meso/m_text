@@ -62,6 +62,7 @@ with the `MTEXT_SMOKE_TEST` hook added because of them.
 | T101 Spell check | ✅ (F6; suggestions not wired to a context menu — see TASKS.md) |
 | T105 Icon + DMG | ✅ (ad-hoc signed only — notarisation documented, not automated) |
 | T103 Phantoms | ✅ (single-row annotations; wired to build errors — see TASKS.md) |
+| Branding | ✅ logo + light/dark brand palette, View ▸ Appearance (see `Resources/Branding/README.md`) |
 
 **Find in Files is usable**: ⇧⌘F prompts, sweeps the project, and streams results into a
 reusable tab where double-click or Enter jumps to the match (T63 engine + T64 buffer).
@@ -85,8 +86,8 @@ since planning. Keep all three of those properties.
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **425 passed, 1492 assertions** — run, along with `swift build -c release`,
-as of the S5 typing-latency fix.
+Test status: **433 passed, 1574 assertions** — run, along with `swift build -c release`,
+as of the branding work.
 
 ### Landed recently
 Every task has a "detail (delivered)" paragraph in `TASKS.md` recording its scope decisions
@@ -117,7 +118,22 @@ and known gaps — read that for the task you're touching rather than re-derivin
   (generation-cached marks, gutter bars, Revert Hunk).
 - **T101** spell check: `SpellCheckScopes.swift` (which ranges are eligible),
   `EditorView+SpellCheck.swift` (`NSSpellChecker`, cached per line, squiggles, F6/⌃F6).
-- **T105** packaging: `Tools/make-icon.swift` (icon drawn in code), `make icon` / `make dmg`,
+- **Command Palette / Goto Anything could never be typed into** — a borderless
+  `NSPanel` cannot become key, so ⌘P and ⌘⇧P listed everything and ignored every
+  keystroke. Present since the initial commit; fixed by `PalettePanel`
+  (`KNOWLEDGE.md` S7).
+- **Landing page**: `docs/` (GitHub Pages, `main` / `/docs`) — one self-contained HTML file
+  plus screenshots captured from the running app via `make screenshots`
+  (`Sources/m_text/CaptureMode.swift`). Read `docs/README.md` before editing it: three separate
+  blank-page bugs came from entrance effects deciding whether content was visible at all.
+- **Branding**: `BrandTheme.swift` (light/dark tokens + WCAG contrast, asserted in
+  `BrandThemeTests`), `ColorScheme.brand(_:)`, `AppearanceController` (three-state
+  system/light/dark, live OS-flip handling), View ▸ Appearance, and the "Syntax stack"
+  icon from `Resources/Branding/`. **Read `Resources/Branding/README.md` before
+  touching any colour** — several values deliberately differ from the design system
+  because the documented ones fail AA, and the tests enforce that.
+- **T105** packaging: `make icon` / `make dmg` (`Tools/make-icon.swift` is the retired
+  drawn-in-code placeholder, superseded by the brand iconset),
   `DISTRIBUTION.md` for the signing and notarisation steps that need an Apple account.
 - **T103** phantoms: `Phantom.swift` + `RowMap` phantom rows, `EditorView+Phantoms.swift`,
   wired to build diagnostics so errors appear under the lines that caused them.

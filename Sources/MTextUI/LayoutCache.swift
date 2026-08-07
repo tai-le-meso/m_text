@@ -18,6 +18,11 @@ final class LayoutCache {
     }
 
     private var entries: [Int: Entry] = [:]
+
+    /// Shaped lines currently held, for `MTEXT_SMOKE_TEST`. A colour-scheme change
+    /// must drop these: each entry bakes its foreground into the `CTLine`, so a
+    /// surviving entry would keep painting the old palette (see `AppearanceController`).
+    var smokeTestCachedLineCount: Int { entries.count }
     private var generation: UInt64 = .max
     private let limit = 2_000
 

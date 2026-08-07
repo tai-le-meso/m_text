@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sessionManager: SessionManager!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before any window is restored, so the first editor is created already
+        // themed rather than being built light and repainted a moment later.
+        AppearanceController.shared.start()
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowWillClose(_:)),
@@ -29,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         InputDiagnostics.installMonitor()
         InputDiagnostics.dumpWindowRender()
         runSmokeTestIfRequested()
+        CaptureMode.runIfRequested(controller: controllers.first)
     }
 
     /// Opt-in UI smoke check — `MTEXT_SMOKE_TEST=1 make debug`, exits non-zero on failure.
@@ -541,8 +545,138 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       + (escaping.map { " — \($0)" } ?? ""))
             }
 
+            /// Branding: picking an appearance must actually repaint the editor, and must do
+            /// so for tabs that already exist. The failure mode this guards is specific —
+            /// `LayoutCache` bakes colours into each shaped `CTLine`, so an appearance switch
+            /// that forgets to invalidate leaves already-drawn lines in the old palette while
+            /// new ones use the new one. Colours are read back through the same accessors
+            /// drawing uses, not from the token table, so agreeing with itself isn't enough.
+            func appearanceCheck() {
+                let controllerRef = AppearanceController.shared
+                check(controllerRef.smokeTestRegisteredEditorCount > 0,
+                      "editors are registered for theming "
+                      + "(got \(controllerRef.smokeTestRegisteredEditorCount))")
+
+                controllerRef.setPreference(.light)
+                let lightBG = controller.smokeTestEditorBackgroundHex
+                let lightFG = controller.smokeTestEditorForegroundHex
+                controllerRef.setPreference(.dark)
+                let darkBG = controller.smokeTestEditorBackgroundHex
+                let darkFG = controller.smokeTestEditorForegroundHex
+
+                check(lightBG != darkBG,
+                      "switching appearance repaints the editor (\(lightBG) -> \(darkBG))")
+                check(lightBG.uppercased() == "#F5F5F9" && darkBG.uppercased() == "#0D0C13",
+                      "and lands on the brand surfaces (light \(lightBG), dark \(darkBG))")
+                check(lightFG.uppercased() == "#15131E" && darkFG.uppercased() == "#F3F2F9",
+                      "with the brand text colours (light \(lightFG), dark \(darkFG))")
+
+                controllerRef.setPreference(.light)
+                check(controller.smokeTestEditorBackgroundHex == lightBG,
+                      "switching back restores the light surface exactly")
+
+                // The colours above would still swap if shaped lines were left cached — and
+                // those bake their foreground in, so the buffer would keep the old palette
+                // while newly shaped lines used the new one. Assert the cache is actually
+                // dropped, which is the part that can silently regress.
+                controller.smokeTestEditorText = String(repeating: "let brand = 1\n", count: 40)
+                controller.smokeTestForceLayout()
+                let cachedBefore = controller.smokeTestCachedLineCount
+                check(cachedBefore > 0, "lines are cached before the switch (got \(cachedBefore))")
+                controllerRef.setPreference(.dark)
+                check(controller.smokeTestCachedLineCount == 0,
+                      "an appearance switch drops every shaped line "
+                      + "(got \(controller.smokeTestCachedLineCount))")
+
+                controllerRef.setPreference(.system)
+                check(controllerRef.preference == .system,
+                      "system is a state of its own, not a synonym for light or dark")
+            }
+
+            /// The appearance switch has to be *reachable*, not merely implemented. Nothing
+            /// else here looks at the menu bar, so a command that exists in code but never
+            /// reaches a menu — or reaches it disabled — looks exactly like a missing feature.
+            func appearanceMenuCheck() {
+                guard let view = NSApp.mainMenu?.items
+                    .first(where: { $0.submenu?.title == "View" })?.submenu else {
+                    check(false, "there is a View menu")
+                    return
+                }
+                guard let appearance = view.items
+                    .first(where: { $0.title == "Appearance" })?.submenu else {
+                    check(false, "View contains an Appearance submenu")
+                    return
+                }
+                // Delegates populate/tick on open; nothing has opened it yet.
+                appearance.delegate?.menuNeedsUpdate?(appearance)
+                let titles = appearance.items.map(\.title)
+                check(titles == ["System", "Light", "Dark"],
+                      "Appearance offers all three states (got \(titles))")
+                let enabled = appearance.items.filter {
+                    $0.target != nil && $0.action != nil && $0.isEnabled
+                }
+                check(enabled.count == 3,
+                      "and every one is enabled and wired (got \(enabled.count))")
+                check(appearance.items.filter { $0.state == .on }.count == 1,
+                      "with exactly one ticked as current")
+
+                // The control in the status bar. The menu item existed, was enabled and
+                // correctly ticked, and was still never found — so "the command exists" is
+                // not the property worth asserting on its own.
+                check(controller.smokeTestAppearanceControlIsVisible,
+                      "the status bar shows an appearance control")
+                AppearanceController.shared.setPreference(.dark)
+                check(controller.smokeTestAppearanceControlTitle == "Dark",
+                      "which follows changes made elsewhere "
+                      + "(got \(controller.smokeTestAppearanceControlTitle))")
+                AppearanceController.shared.setPreference(.system)
+                check(controller.smokeTestAppearanceControlTitle == "System",
+                      "in both directions (got \(controller.smokeTestAppearanceControlTitle))")
+            }
+
+            /// Typing into the Command Palette has to filter it. Reported as the palette
+            /// opening but not searching — and nothing here had ever sent a keystroke to
+            /// anything other than an editor, so a panel that shows correctly while
+            /// swallowing every key was invisible to the whole suite.
+            func commandPaletteTypingCheck() {
+                controller.showCommandPalette(nil)
+                let palette = controller.smokeTestPalette
+                let all = palette.smokeTestItemCount
+                check(all > 10, "the palette lists the menu's commands (got \(all))")
+                // A borderless panel that cannot become key never receives a keystroke.
+                check(palette.smokeTestPanelCanBecomeKey, "its panel can become key")
+                check(palette.smokeTestFieldHasFocus, "and its search field holds focus")
+
+                for character in "appear" {
+                    guard let event = NSEvent.keyEvent(
+                        with: .keyDown, location: .zero, modifierFlags: [],
+                        timestamp: ProcessInfo.processInfo.systemUptime,
+                        windowNumber: 0, context: nil,
+                        characters: String(character),
+                        charactersIgnoringModifiers: String(character),
+                        isARepeat: false, keyCode: 0)
+                    else { return }
+                    NSApp.sendEvent(event)
+                }
+                check(palette.smokeTestQuery == "appear",
+                      "typing reaches the field (got \(String(reflecting: palette.smokeTestQuery)))")
+                let filtered = palette.smokeTestItemCount
+                check(filtered > 0 && filtered < all,
+                      "and filters the list (\(all) -> \(filtered))")
+
+                // Put focus back. Now that the panel genuinely takes key status, leaving it
+                // open would starve every later check of keystrokes — which is itself proof
+                // the fix works.
+                palette.dismiss()
+                window.makeKeyAndOrderFront(nil)
+                controller.smokeTestFocusEditor()
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { commandPaletteTypingCheck() },
+                { appearanceMenuCheck() },
+                { appearanceCheck() },
                 { renderCheck() },
                 { tabVisibilityCheck("on the restored session") },
                 { newTabCheck() },

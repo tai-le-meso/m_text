@@ -202,6 +202,61 @@ public struct ColorScheme {
         cache.entries.removeAll(keepingCapacity: true)
     }
 
+    /// The brand scheme for one appearance — the palette from the m_text icon, mapped onto
+    /// scope selectors (see `BrandTheme`).
+    ///
+    /// Unlike `builtInDefault()`, this **does** set globals. That default deliberately leaves
+    /// them nil so the platform's own label/background colours win and light/dark both work
+    /// from one scheme; a brand scheme has an opinion about the surface, so it states it, and
+    /// there is one scheme per appearance instead.
+    ///
+    /// Selector coverage matches `builtInDefault()` so switching between them cannot leave a
+    /// token suddenly unstyled — anything not listed falls back to `globals.foreground`.
+    public static func brand(_ theme: BrandTheme) -> ColorScheme {
+        func rule(_ selector: String, _ color: RGBAColor, _ style: FontStyle = FontStyle()) -> Rule {
+            Rule(selector: ScopeSelector(selector),
+                 style: TokenStyle(foreground: color, fontStyle: style))
+        }
+
+        var globals = SchemeGlobals()
+        globals.background = theme.background
+        globals.foreground = theme.text
+        globals.caret = theme.caret
+        globals.selection = theme.selection
+        globals.inactiveSelection = theme.surface2
+        globals.lineHighlight = theme.surface2
+        globals.gutterBackground = theme.background
+        globals.gutterForeground = theme.gutter
+        globals.invisibles = theme.muted
+
+        return ColorScheme(name: "m_text Brand", globals: globals, rules: [
+            rule("comment", theme.muted, FontStyle(italic: true)),
+            rule("punctuation.definition.comment", theme.muted, FontStyle(italic: true)),
+            rule("string", theme.syntaxString),
+            rule("constant.numeric", theme.syntaxNumber),
+            rule("constant.language", theme.syntaxNumber),
+            rule("constant.character.escape", theme.syntaxFunction),
+            rule("keyword", theme.syntaxKeyword),
+            rule("keyword.operator", theme.syntaxType),
+            rule("storage", theme.syntaxKeyword),
+            rule("storage.type", theme.syntaxKeyword),
+            rule("entity.name.function", theme.syntaxFunction),
+            rule("entity.name.type", theme.syntaxType),
+            rule("entity.name.class", theme.syntaxType),
+            rule("entity.name.tag", theme.syntaxKeyword),
+            rule("entity.other.attribute-name", theme.syntaxFunction),
+            rule("support.function", theme.syntaxFunction),
+            rule("support.type", theme.syntaxType),
+            rule("variable.parameter", theme.text),
+            rule("variable.language", theme.syntaxKeyword),
+            rule("invalid", theme.danger),
+            rule("markup.bold", theme.text, FontStyle(bold: true)),
+            rule("markup.italic", theme.text, FontStyle(italic: true)),
+            rule("markup.heading", theme.syntaxKeyword, FontStyle(bold: true)),
+            rule("markup.underline.link", theme.syntaxType, FontStyle(underline: true)),
+        ])
+    }
+
     /// A readable default so the editor works before any scheme is loaded.
     /// Colours are nil where the platform's own label/background colours should win,
     /// which keeps light/dark mode working without shipping two schemes.

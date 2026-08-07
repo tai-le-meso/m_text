@@ -1,0 +1,74 @@
+{
+  "meta": {
+    "source": "docs/mesoneer-design-system.md (colour tokens) + m_text icon direction 2d (syntax palette)",
+    "note": "Every pair below verified >= 4.5:1 (WCAG AA body text). Derived values keep the source hue/saturation and move only HSL lightness.",
+    "gutterNote": "Gutter/line numbers use the muted token so they still clear AA (5.18:1 light, 6.12:1 dark). If you want them dimmer, 3:1 is the floor."
+  },
+  "light": {
+    "bg": "#F5F5F9",
+    "surface": "#FFFFFF",
+    "surface2": "#F0F0F5",
+    "border": "#E7E7EF",
+    "text": "#15131E",
+    "muted": "#6D6B7E",
+    "primary": "#3B2A78",
+    "primaryFill": "#3B2A78",
+    "primaryAccent": "#3B2A78",
+    "onPrimary": "#FFFFFF",
+    "primaryBright": "#907ED2",
+    "primary100": "rgba(59,42,120,0.10)",
+    "navBg": "#141220",
+    "navText": "#B7B5C6",
+    "navHover": "rgba(255,255,255,0.06)",
+    "shadow": "rgba(20,18,30,0.06)",
+    "success": "#0F8843",
+    "warning": "#996F09",
+    "danger": "#E12D33",
+    "syntax": {
+      "keyword": "#007FA8",
+      "string": "#008937",
+      "number": "#987000",
+      "function": "#C75200",
+      "type": "#8B4EFF",
+      "caret": "#007FA8",
+      "selection": "rgba(59,42,120,0.14)",
+      "gutter": "#6D6B7E"
+    }
+  },
+  "dark": {
+    "bg": "#0D0C13",
+    "surface": "#17151F",
+    "surface2": "#211E2C",
+    "border": "#2A2837",
+    "text": "#F3F2F9",
+    "muted": "#9794A8",
+    "primary": "#8571CD",
+    "primaryFill": "#7D67C9",
+    "primaryAccent": "#8571CD",
+    "onPrimary": "#FFFFFF",
+    "primaryBright": "#B7ABE2",
+    "primary100": "rgba(131,111,204,0.16)",
+    "navBg": "#08070C",
+    "navText": "#8B8899",
+    "navHover": "rgba(255,255,255,0.06)",
+    "shadow": "rgba(0,0,0,0.45)",
+    "success": "#12A150",
+    "warning": "#B4820A",
+    "danger": "#E5484D",
+    "syntax": {
+      "keyword": "#00A9E0",
+      "string": "#00C950",
+      "number": "#EFB000",
+      "function": "#FF6900",
+      "type": "#955EFF",
+      "caret": "#00A9E0",
+      "selection": "rgba(131,111,204,0.24)",
+      "gutter": "#9794A8"
+    }
+  },
+  "icon": {
+    "field": "#1E2939",
+    "caret": "#00A9E0",
+    "direction": "2d Syntax stack"
+  }
+}
