@@ -7,6 +7,22 @@ request like everything else and cannot drift from what shipped.
 **Add a section before tagging.** A tag with no matching section still releases — the notes
 just fall back to the auto-generated commit list.
 
+## 1.0.4
+
+### Fixed: opening Settings killed the app
+
+Choosing **m_text ▸ Settings…** (⌘,) quit the app instantly. This affected every release so
+far, 1.0.0 through 1.0.3.
+
+It was a deadlock rather than a crash. The settings file-watcher ran its handler on the same
+queue that reloading blocks on, so the handler waited for a queue it was already running on
+and macOS killed the process. Opening Settings triggered it every time, because that command
+writes the generated defaults file into the very directory being watched.
+
+Each occurrence also left an orphaned `Default.sublime-settings.sb-XXXXXX` file behind in
+`~/Library/Application Support/m_text/User/` — an interrupted save. They are harmless and can
+be deleted.
+
 ## 1.0.3
 
 ### Update checking (opt-in)
