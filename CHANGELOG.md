@@ -9,6 +9,24 @@ just fall back to the auto-generated commit list.
 
 ## Unreleased
 
+### Update checking (opt-in)
+
+m_text can tell you when a new version is out. **m_text ▸ Check for Updates…** asks
+immediately; a daily background check runs only if you switch on `check_for_updates` in
+Settings, which is **off by default**.
+
+This is the first network code in the app, so the promise changed from "100% offline" to
+**offline by default**: there is exactly one call site, it is opt-in, and the smoke test
+asserts the setting ships off. Choosing *Check for Updates…* is an explicit request and works
+regardless of the setting.
+
+When an update exists you get *Download*, *Release Notes*, *Skip This Version* or *Later*.
+Skipping suppresses that one version, not all future ones. Drafts and pre-releases are
+ignored.
+
+It does not install anything yet — for that to be safe these builds need a signature to
+verify against, which is a separate piece of work (see DISTRIBUTION.md).
+
 ### Open folders like Sublime (phase 2)
 
 - **Drag folders onto the window** — they join the project; dragged files open as tabs.

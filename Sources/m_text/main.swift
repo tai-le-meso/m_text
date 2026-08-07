@@ -53,6 +53,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             pendingOpenPaths = []
             application(NSApp, openFiles: paths)
         }
+        // Opt-in and throttled to once a day; does nothing at all unless `check_for_updates`
+        // is on. Deferred so a slow or unreachable network cannot delay the first window.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+            self?.controllers.first?.startAutomaticUpdateCheckIfEnabled()
+        }
         InputDiagnostics.installMonitor()
         InputDiagnostics.dumpWindowRender()
         runSmokeTestIfRequested()
@@ -836,14 +841,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "both are wired to an action")
                 // The script it installs has to be inside the bundle, or the command is
                 // unusable for anyone who downloaded the app rather than building it.
-                check(Bundle.main.url(forResource: "mtext", withExtension: nil) != nil
-                        || ProcessInfo.processInfo.environment["MTEXT_SMOKE_ALLOW_NO_BUNDLE"] != nil,
-                      "the mtext script ships inside the bundle")
+                //
+                // Only meaningful when running *from* a bundle. `make debug` runs the bare
+                // binary, which has no Resources — asserting there made the documented way
+                // to run the smoke test fail, which is a broken check, not a finding.
+                if Bundle.main.bundleURL.pathExtension == "app" {
+                    check(Bundle.main.url(forResource: "mtext", withExtension: nil) != nil,
+                          "the mtext script ships inside the bundle")
+                } else {
+                    print("  – skipped: bundled-script check needs a .app (run it on build/m_text.app)")
+                }
+            }
+
+            /// The update check has to be reachable, and — the part that matters — must not
+            /// make the app phone home unless asked. The setting is the guarantee; assert it
+            /// is off out of the box rather than trusting the default stays put.
+            func updateMenuCheck() {
+                guard let appMenu = NSApp.mainMenu?.items.first?.submenu else {
+                    check(false, "there is an application menu"); return
+                }
+                let titles = appMenu.items.map(\.title)
+                check(titles.contains { $0.hasPrefix("Check for Updates") },
+                      "the app menu offers Check for Updates (got \(titles))")
+                check(controller.smokeTestAutomaticUpdatesEnabled == false,
+                      "automatic update checks are OFF by default — the app stays offline "
+                      + "until asked (got \(controller.smokeTestAutomaticUpdatesEnabled))")
             }
 
             run([
                 { layerContainmentCheck("at launch") },
                 { helpMenuCheck() },
+                { updateMenuCheck() },
                 { dropCheck() },
                 { multiFolderCheck() },
                 { commandPaletteTypingCheck() },

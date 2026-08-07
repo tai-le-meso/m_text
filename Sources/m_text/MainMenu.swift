@@ -37,6 +37,11 @@ private func appMenu() -> NSMenu {
     // T86. Titled "Settings…" to match current macOS (System Settings, and Apple's own
     // apps since Ventura) rather than Sublime's "Preferences"; ⌘, is the platform
     // standard either way. The Command Palette lists it as written here.
+    // An explicit request, so it works even with automatic checking off — that setting
+    // governs background traffic, not this.
+    menu.addItem(withTitle: "Check for Updates…",
+                 action: #selector(MainWindowController.checkForUpdates(_:)), keyEquivalent: "")
+    menu.addItem(.separator())
     menu.addItem(withTitle: "Settings…",
                  action: #selector(MainWindowController.openPreferences(_:)),
                  keyEquivalent: ",")

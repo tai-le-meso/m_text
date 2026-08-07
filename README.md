@@ -1,7 +1,8 @@
 # m_text
 
 A native macOS text editor — a Sublime Text clone built in pure Swift + AppKit.
-No Xcode project, no SwiftUI, no third-party dependencies. 100% offline; all state stored locally.
+No Xcode project, no SwiftUI, no third-party dependencies. Offline by default — the only
+network request is an opt-in update check; all state stored locally.
 
 - **PLAN.md** — Sublime Text feature analysis, architecture, phased roadmap
 - **TASKS.md** — granular engineering tasks per phase

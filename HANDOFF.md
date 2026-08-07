@@ -15,7 +15,12 @@ originally written around plus two follow-on ⌘F bugs. Those sessions *did* hav
 ## Ground rules for this project (unchanged)
 
 - Pure Swift + AppKit. **No Xcode project, no SwiftUI, no nibs/storyboards, no XCTest,
-  no third-party dependencies.** macOS 13+. 100% offline — no network code anywhere.
+  no third-party dependencies.** macOS 13+.
+- **Offline by default.** There is exactly one network call site in the app —
+  `UpdateChecker` — and it runs only when the user turns on `check_for_updates` (off by
+  default) or picks *Check for Updates…* by hand. Nothing else opens a socket, and the
+  smoke test asserts the setting is off out of the box. If you add a second call site,
+  update this line; the guarantee is only worth what it says.
 - Tests are a plain executable using the hand-rolled `MTextTestKit` harness, because
   XCTest ships inside Xcode.app and this builds with Command Line Tools alone.
 - Build/run/test: `make` (release bundle), `make run` (bundle + `open`), **`make debug`
@@ -87,7 +92,7 @@ since planning. Keep all three of those properties.
 Build command, and `BuildSystem` (parsing) is deliberately separate from `BuildRunner`
 (launching) so that stays easy to verify. Keep it that way.
 
-Test status: **452 passed, 1616 assertions** — run, along with `swift build -c release`,
+Test status: **461 passed, 1646 assertions** — run, along with `swift build -c release`,
 as of the branding work.
 
 ### Landed recently

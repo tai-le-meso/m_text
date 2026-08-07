@@ -210,6 +210,13 @@ public final class MainWindowController: NSWindowController {
     /// The command palette, for `MTEXT_SMOKE_TEST`.
     public var smokeTestPalette: Palette { overlayPalette }
 
+    /// Whether background update checks are on, resolved through the real settings stack.
+    public var smokeTestAutomaticUpdatesEnabled: Bool {
+        SettingsController.shared.store.settings(
+            syntaxName: nil, project: currentProject?.settings ?? .empty, view: .empty
+        ).checkForUpdates
+    }
+
     public var smokeTestTabCount: Int { focusedPane.tabs.count }
     /// How many of the focused pane's tab containers are visible. Must be exactly one — see
     /// `Pane.visibleContainerCount` for why more than one is invisible-but-fatal.
@@ -983,6 +990,21 @@ public final class MainWindowController: NSWindowController {
             view: tab.editor.viewLayer
         )
         tab.editor.applySettings(settings)
+    }
+
+
+    /// Runs the daily update check, if the user has asked for one.
+    ///
+    /// Reads the resolved settings rather than `UserDefaults` so the value comes from the
+    /// same default→user→project stack as everything else, and a project can't quietly turn
+    /// network access on for a window that did not have it.
+    public func startAutomaticUpdateCheckIfEnabled() {
+        let settings = SettingsController.shared.store.settings(
+            syntaxName: nil, project: currentProject?.settings ?? .empty, view: .empty)
+        UpdateChecker.shared.checkAutomaticallyIfDue(settingEnabled: settings.checkForUpdates) {
+            [weak self] update in
+            self?.presentUpdate(update)
+        }
     }
 
     private func applySettingsToAllTabs() {
@@ -1958,6 +1980,67 @@ public final class MainWindowController: NSWindowController {
         if !folders.isEmpty || !files.isEmpty {
             window?.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    // MARK: - Software update
+
+    /// m_text ▸ Check for Updates… — an explicit request, so it runs whether or not
+    /// automatic checking is switched on.
+    @objc public func checkForUpdates(_ sender: Any?) {
+        guard let window else { return }
+        UpdateChecker.shared.recordCheck()
+        UpdateChecker.shared.check { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let update):
+                guard let update else {
+                    let alert = NSAlert()
+                    alert.messageText = "m_text is up to date"
+                    alert.informativeText =
+                        "You are running \(UpdateChecker.shared.currentVersion)."
+                    alert.beginSheetModal(for: window)
+                    return
+                }
+                // A manual check overrides a previous "skip": asking explicitly means you
+                // want to hear about it again.
+                UpdateChecker.shared.clearSkipped()
+                self.presentUpdate(update)
+            case .failure(let error):
+                self.showError(error)
+            }
+        }
+    }
+
+    /// Offers an update. Phase 1 deliberately hands off to the browser rather than
+    /// downloading: installing a build these releases cannot cryptographically vouch for is
+    /// a separate decision, not a detail (see `UpdateChecker`).
+    public func presentUpdate(_ update: AvailableUpdate) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "m_text \(update.version) is available"
+        alert.informativeText = """
+            You are running \(UpdateChecker.shared.currentVersion).
+
+            Downloading opens the DMG in your browser; drag m_text to Applications to \
+            replace this copy.
+            """
+        alert.addButton(withTitle: "Download")
+        alert.addButton(withTitle: "Release Notes")
+        alert.addButton(withTitle: "Skip This Version")
+        alert.addButton(withTitle: "Later")
+        alert.beginSheetModal(for: window) { response in
+            switch response {
+            case .alertFirstButtonReturn:
+                NSWorkspace.shared.open(update.downloadURL ?? update.releaseURL)
+            case .alertSecondButtonReturn:
+                NSWorkspace.shared.open(update.releaseURL)
+            case .alertThirdButtonReturn:
+                UpdateChecker.shared.skip(update.version)
+            default:
+                break
+            }
         }
     }
 
