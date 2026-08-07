@@ -49,6 +49,13 @@ private func fileMenu() -> NSMenu {
     menu.addItem(withTitle: "New Tab", action: #selector(MainWindowController.newTab(_:)), keyEquivalent: "t")
     menu.addItem(withTitle: "New Window", action: #selector(AppDelegate.newWindow(_:)), keyEquivalent: "n")
     menu.addItem(withTitle: "Open…", action: #selector(MainWindowController.openDocument(_:)), keyEquivalent: "o")
+    // Populated as it opens by RecentProjectsMenu — folders and .sublime-project files, not
+    // individual documents, because a folder is this editor's unit of work.
+    let recent = NSMenuItem(title: "Open Recent", action: nil, keyEquivalent: "")
+    let recentMenu = NSMenu(title: "Open Recent")
+    recentMenu.delegate = RecentProjectsMenu.shared
+    recent.submenu = recentMenu
+    menu.addItem(recent)
     menu.addItem(.separator())
     menu.addItem(withTitle: "Save", action: #selector(MainWindowController.saveDocument(_:)), keyEquivalent: "s")
     menu.addItem(item("Save As…", #selector(MainWindowController.saveDocumentAs(_:)), "s", [.command, .shift]))

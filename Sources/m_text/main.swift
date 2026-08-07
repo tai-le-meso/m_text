@@ -11,6 +11,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Before any window is restored, so the first editor is created already
         // themed rather than being built light and repainted a moment later.
         AppearanceController.shared.start()
+        // A recent entry is a folder or a .sublime-project file; `acceptDropped` and
+        // `open(url:)` already know the difference, so route through the same code the
+        // Finder and drag paths use rather than duplicating the decision here.
+        RecentProjectsMenu.shared.onOpen = { [weak self] url in
+            self?.application(NSApp, openFiles: [url.path])
+        }
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(windowWillClose(_:)),
@@ -746,8 +752,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                       "and the sidebar goes with it (width \(controller.smokeTestSidebarWidth))")
             }
 
+            /// Phase 2: folders arriving from a drag, Finder "Open With", or the Dock all
+            /// funnel through one path. Checked here rather than trusting the wiring,
+            /// because each entry point looks correct in isolation and the failure mode is
+            /// a folder being opened as a *file* — which is what the old openFile did.
+            func dropCheck() {
+                let base = URL(fileURLWithPath: NSTemporaryDirectory())
+                    .appendingPathComponent("m_text-drop-\(ProcessInfo.processInfo.processIdentifier)")
+                let folder = base.appendingPathComponent("dropped-folder")
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                let file = base.appendingPathComponent("dropped.txt")
+                try? "dropped file".write(to: file, atomically: true, encoding: .utf8)
+                defer { try? FileManager.default.removeItem(at: base) }
+
+                controller.smokeTestOpenFolders([])
+                controller.smokeTestDrop(folders: [folder], files: [])
+                controller.window?.layoutIfNeeded()
+                check(controller.smokeTestProjectFolderCount == 1,
+                      "a dropped folder becomes a project folder "
+                      + "(got \(controller.smokeTestProjectFolderCount))")
+                check(controller.smokeTestSidebarWidth > 100,
+                      "and the sidebar opens for it (width \(controller.smokeTestSidebarWidth))")
+
+                // Dropping onto a window that already has folders must widen it, not
+                // replace what is open.
+                let second = base.appendingPathComponent("second-folder")
+                try? FileManager.default.createDirectory(at: second, withIntermediateDirectories: true)
+                controller.smokeTestDrop(folders: [second], files: [])
+                check(controller.smokeTestProjectFolderCount == 2,
+                      "a second drop adds rather than replaces "
+                      + "(got \(controller.smokeTestProjectFolderCount))")
+
+                controller.smokeTestDrop(folders: [], files: [file])
+                check(controller.smokeTestOpenTabTitles.contains("dropped.txt"),
+                      "a dropped file opens as a tab (got \(controller.smokeTestOpenTabTitles))")
+                // Not "one more tab": opening a file into an empty untitled tab reuses it,
+                // which is correct. What must not happen is the same file opening twice.
+                controller.smokeTestDrop(folders: [], files: [file])
+                check(controller.smokeTestOpenTabTitles.filter { $0 == "dropped.txt" }.count == 1,
+                      "dropping it again focuses the open tab rather than duplicating it "
+                      + "(got \(controller.smokeTestOpenTabTitles))")
+
+                // The recent list is what File ▸ Open Recent shows.
+                let recent = RecentProjectsMenu.shared.smokeTestTitles()
+                check(recent.contains("dropped-folder"),
+                      "the folder is offered under Open Recent (got \(recent))")
+                check(!recent.contains("dropped.txt"),
+                      "but a plain file is not — a folder is the unit of work")
+            }
+
             run([
                 { layerContainmentCheck("at launch") },
+                { dropCheck() },
                 { multiFolderCheck() },
                 { commandPaletteTypingCheck() },
                 { appearanceMenuCheck() },
@@ -845,12 +901,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.showWindow(nil)
     }
 
-    func application(_ sender: NSApplication, openFile filename: String) -> Bool {
-        let controller = MainWindowController()
-        controllers.append(controller)
-        controller.showWindow(nil)
-        controller.open(url: URL(fileURLWithPath: filename))
-        return true
+    /// Finder "Open With", a Dock drop, and `open -a m_text …`.
+    ///
+    /// `openFiles` rather than `openFile`: dropping three folders on the Dock icon calls the
+    /// plural form once, and the singular form is not called at all when it is implemented.
+    /// Handling them one at a time would also open three windows instead of one window with
+    /// three roots.
+    func application(_ sender: NSApplication, openFiles filenames: [String]) {
+        var folders: [URL] = [], files: [URL] = []
+        for name in filenames {
+            let url = URL(fileURLWithPath: name)
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+            else { continue }
+            // A directory used to be handed to `open(url:)`, which treats everything as a
+            // file — so opening a folder from Finder produced an error rather than a project.
+            if isDirectory.boolValue { folders.append(url) } else { files.append(url) }
+        }
+
+        guard !folders.isEmpty || !files.isEmpty else {
+            sender.reply(toOpenOrPrint: .failure)
+            return
+        }
+
+        // Reuse the frontmost window when there is one, so opening a file from Finder while
+        // working does not strand it in a second window; otherwise make one.
+        let controller = controllers.first(where: { $0.window?.isKeyWindow == true })
+            ?? controllers.first(where: { $0.window?.isVisible == true })
+            ?? {
+                let new = MainWindowController()
+                controllers.append(new)
+                new.showWindow(nil)
+                return new
+            }()
+        controller.acceptDropped(folders: folders, files: files)
+        sender.reply(toOpenOrPrint: .success)
     }
 }
 

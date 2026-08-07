@@ -274,6 +274,11 @@ public final class MainWindowController: NSWindowController {
         setProject(currentProject.map { $0.adding(folder: url) } ?? .adHoc(folder: url))
     }
     public func smokeTestRemoveFolder(_ url: URL) { removeFolderFromProject(url) }
+    /// Phase 2: the path a drag, a Finder open and a Dock drop all funnel through.
+    public func smokeTestDrop(folders: [URL], files: [URL]) {
+        acceptDropped(folders: folders, files: files)
+    }
+    public var smokeTestOpenTabTitles: [String] { focusedPane.tabs.map { $0.title } }
     public var smokeTestProjectFolderCount: Int { currentProject?.folders.count ?? 0 }
     public var smokeTestSidebarRootCount: Int { sidebar.smokeTestRootCount }
     /// The sidebar's *on-screen* width. Row count alone passed happily while the sidebar
@@ -298,7 +303,7 @@ public final class MainWindowController: NSWindowController {
     }
 
     private let sidebar = Sidebar()
-    private let sidebarSplitView = NSSplitView()
+    private let sidebarSplitView = FileDropSplitView()
     /// Width the sidebar returns to when shown. Remembered across hide/show within a
     /// session so dragging the divider isn't undone by toggling.
     private var sidebarWidth: CGFloat = 240
@@ -396,6 +401,11 @@ public final class MainWindowController: NSWindowController {
         sidebar.isHidden = true
         sidebar.onOpenFile = { [weak self] url in self?.open(url: url) }
         sidebar.onRemoveFolder = { [weak self] url in self?.removeFolderFromProject(url) }
+        // Dropping anywhere on the window: folders join the project, files open as tabs —
+        // the same split Sublime makes.
+        sidebarSplitView.onDrop = { [weak self] folders, files in
+            self?.acceptDropped(folders: folders, files: files)
+        }
 
         sidebarSplitView.isVertical = true
         sidebarSplitView.dividerStyle = .thin
@@ -1243,6 +1253,18 @@ public final class MainWindowController: NSWindowController {
 
     /// Activates `tab` within whichever pane owns it, switching focus to that pane
     /// first if it isn't already focused (see `pane(owning:)`).
+    /// The tab already showing `url`, in any pane. Compared on the standardized path, so
+    /// `/tmp/a/../a/x.txt` and `/tmp/a/x.txt` are recognised as one file.
+    private func existingTab(showing url: URL) -> Tab? {
+        let key = url.standardizedFileURL.path
+        for pane in panes {
+            if let tab = pane.tabs.first(where: {
+                $0.editor.document.fileURL?.standardizedFileURL.path == key
+            }) { return tab }
+        }
+        return nil
+    }
+
     private func activate(_ tab: Tab) {
         guard let owningPane = pane(owning: tab) else { return }
         if let index = panes.firstIndex(where: { $0 === owningPane }), index != focusedPaneIndex {
@@ -1677,6 +1699,14 @@ public final class MainWindowController: NSWindowController {
     /// document — then it loads in place, matching Sublime's own "Open File" behaviour
     /// so a fresh window doesn't collect a stray empty tab next to the file you opened.
     public func open(url: URL) {
+        // Already open? Focus it. Opening the same file twice gave two tabs editing one
+        // document — from Finder, the sidebar, Goto Anything and a drop alike — with no
+        // hint which was which and unsaved changes split across them. `activate` moves
+        // focus to the owning pane, so a file open in the other pane is found there.
+        if let existing = existingTab(showing: url) {
+            activate(existing)
+            return
+        }
         do {
             let current = activeTab.editor.document
             if current.fileURL == nil, !current.isDirty {
@@ -1877,6 +1907,7 @@ public final class MainWindowController: NSWindowController {
         panel.beginSheetModal(for: window) { [weak self] response in
             guard response == .OK, !panel.urls.isEmpty else { return }
             self?.setProject(.adHoc(folders: panel.urls))
+            panel.urls.forEach { RecentProjectsMenu.shared.note($0) }
         }
     }
 
@@ -1898,6 +1929,35 @@ public final class MainWindowController: NSWindowController {
             } else {
                 self.setProject(.adHoc(folders: panel.urls))
             }
+            panel.urls.forEach { RecentProjectsMenu.shared.note($0) }
+        }
+    }
+
+    /// Folders and files arriving from a drag, a Finder "Open With", or a Dock drop.
+    ///
+    /// Folders are *added* rather than replacing what is open: dropping a second folder onto
+    /// a window you are working in should widen it, not throw the first one away. Opening a
+    /// folder from Finder into a fresh window still gets a plain single-folder project,
+    /// because that window has nothing to add to.
+    public func acceptDropped(folders: [URL], files: [URL]) {
+        if !folders.isEmpty {
+            let updated = currentProject.map { $0.adding(folders: folders) }
+                ?? .adHoc(folders: folders)
+            setProject(updated)
+            folders.forEach { RecentProjectsMenu.shared.note($0) }
+        }
+        for file in files {
+            // A .sublime-project is a project, not a document. Opening it as text is
+            // technically possible and never what anyone means by dropping one on a window.
+            if file.pathExtension.lowercased() == "sublime-project" {
+                loadProject(from: file)
+            } else {
+                open(url: file)
+            }
+        }
+        if !folders.isEmpty || !files.isEmpty {
+            window?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 
@@ -1932,6 +1992,9 @@ public final class MainWindowController: NSWindowController {
             let data = try Data(contentsOf: url)
             let project = try ProjectParser.parse(data: data, projectFileURL: url)
             setProject(project)
+            // Only on success: a file that failed to parse is not something to offer again
+            // from a menu.
+            RecentProjectsMenu.shared.note(url)
         } catch {
             showError(error)
         }
