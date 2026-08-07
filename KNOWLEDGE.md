@@ -23,6 +23,7 @@ you will arrive: something looks wrong on screen and you don't yet know why.
 | Window blank — editor, gutter **and** tab bar — but title and status line update | A zero-width sibling's unclipped layer painting over the pane | [S6](#s6) |
 | Drawing looks correct in every trace but nothing appears | Dump the **layer** tree, not the view tree | [S6](#s6) |
 | "Can't edit or do anything" — window fine, not crashed, but typing barely registers; only in big files | A full-buffer scan running on every keystroke | [S5](#s5) |
+| App dies instantly on Settings (⌘,) — SIGTRAP, no error | A dispatch source handler running on the queue its work `sync`s onto | [S8](#s8) |
 | Any pane/divider/sizing weirdness after adding a split | `NSSplitView` never lays out a newly added subview | [P1](#p1) |
 | Open Folder… appears to do nothing — no sidebar, no tree | Sidebar unhidden but left at zero width | [P1](#p1) |
 | A "fix" that changes focus appears to do nothing at all | `dismissFind()` steals first responder back | [P2](#p2) |
@@ -390,6 +391,48 @@ looking and behaving focused while the list is up. Autocomplete keys are handled
 **Present since the initial commit.** It survived because nothing tested typing into anything
 but an editor. The smoke test now asserts `canBecomeKey`, that the field takes focus, that a
 real key event reaches it, and that the list actually narrows (117 → 3 for "appear").
+
+---
+
+<a id="s8"></a>
+### S8 — Opening Settings kills the app instantly
+
+**Symptom.** ⌘, or m_text ▸ Settings… and the app vanishes. The crash report says
+`EXC_BREAKPOINT (SIGTRAP)` with `__DISPATCH_WAIT_FOR_QUEUE__` at the top of the faulting
+thread — not a nil unwrap, not a range error. Present in every release up to 1.0.3.
+
+**Root cause — a deadlock, not a crash.** `SettingsStore` watches its directory with a
+`DispatchSource` created as `queue: queue`, the *same* serial queue `reload()` blocks on:
+
+```swift
+source = DispatchSource.makeFileSystemObjectSource(..., queue: queue)   // handler runs ON queue
+source.setEventHandler { self.reload() }                                 // reload does queue.sync
+```
+
+`queue.sync` from a block already executing on `queue` is a deadlock, and libdispatch detects
+it and traps — which is why it looks like an instant crash rather than a hang.
+
+Opening Settings is what fires it: the command *writes the generated defaults file into the
+very directory being watched*, so the handler runs, calls `reload()`, and dies.
+
+**Fix.** Give the source its own queue (`watchQueue`). `reload()` then stays safe to call
+from anywhere, including the main thread.
+
+**Corroboration worth knowing about.** Each crash left an orphaned
+`Default.sublime-settings.sb-XXXXXX` temp file in the user settings directory — an atomic
+write killed mid-rename. Four of them had accumulated, one per crash, with timestamps
+matching the crash reports. **That debris was noticed twice earlier in the project and
+written off as "a settings write failed at some point"** — it was this, and the file dates
+would have led straight here.
+
+**Regression test.** `SettingsTests.testWatchDoesNotDeadlock` writes into a watched temp
+directory and waits for `onChange` with a timeout, pumping the run loop because the callback
+is delivered on main. Verified against the unfixed code: the whole test binary dies with
+`Trace/BPT trap: 5`, the same signal as the user's report.
+
+**The general rule.** A `DispatchSource`'s handler queue and any queue that handler `sync`s
+onto must be different. Grep for `queue:` at source creation and check it against every
+`.sync` reachable from the handler.
 
 ---
 

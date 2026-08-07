@@ -21,6 +21,15 @@ public final class SettingsStore {
     public var onChange: (() -> Void)?
 
     private let queue = DispatchQueue(label: "m_text.settings")
+    /// The file-system source runs its handler here, **never on `queue`**.
+    ///
+    /// It used to be created with `queue: queue`, so the handler ran *on* the same serial
+    /// queue that `reload()` then blocked on with `queue.sync` — a sync onto the queue you
+    /// are already running on, which libdispatch traps (EXC_BREAKPOINT). Opening Settings
+    /// writes the generated defaults file into this very directory, so the watcher fired and
+    /// the app died every time. Keeping the two queues apart is the fix; `reload()` stays
+    /// safe to call from anywhere.
+    private let watchQueue = DispatchQueue(label: "m_text.settings.watch")
     private var watcher: DispatchSourceFileSystemObject?
     private var watchedDescriptor: CInt = -1
 
@@ -161,7 +170,7 @@ public final class SettingsStore {
         let source = DispatchSource.makeFileSystemObjectSource(
             fileDescriptor: descriptor,
             eventMask: [.write, .rename, .delete, .extend],
-            queue: queue
+            queue: watchQueue
         )
         source.setEventHandler { [weak self] in
             guard let self else { return }

@@ -11,6 +11,7 @@ enum SettingsTests {
         ("skips values whose shape has no setting, keeping the rest", testSkipsUnrepresentable),
         ("throws for a top-level array instead of an object", testThrowsForNonObject),
         ("resolves shipped defaults with no other layer", testDefaultsOnly),
+        ("a watched file change reloads without deadlocking", testWatchDoesNotDeadlock),
         ("later layers win per key, not wholesale", testPerKeyOverride),
         ("applies the full default->user->syntax->project->view order", testFullPrecedence),
         ("derives indentUnit from tab_size and translate_tabs_to_spaces", testIndentUnit),
@@ -236,5 +237,41 @@ enum SettingsTests {
         let settings = SettingsResolver.resolve([SettingsResolver.defaultLayer, project.settings])
         expectEqual(settings.tabSize, 8)
         expectEqual(settings.rulers, [100])
+    }
+
+    /// Writing into the watched directory must reload, not hang.
+    ///
+    /// The file-system source used to run its handler on the same serial queue that
+    /// `reload()` blocks on with `queue.sync`, so the handler waited on the queue it was
+    /// already running on and libdispatch trapped it — the app died every time Settings was
+    /// opened, because opening Settings writes the generated defaults file into exactly this
+    /// directory. A timeout here *is* the assertion: against the old code this never fires.
+    static func testWatchDoesNotDeadlock() {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("m_text_SettingsWatch_\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let store = SettingsStore(userDirectory: directory)
+        store.reload()
+        let changed = DispatchSemaphore(value: 0)
+        store.onChange = { changed.signal() }
+        store.startWatching()
+        defer { store.stopWatching() }
+
+        // The same shape the app writes: a real settings file appearing in the directory.
+        let file = directory.appendingPathComponent("Preferences.sublime-settings")
+        try? Data(#"{"tab_size": 7}"#.utf8).write(to: file)
+
+        // `onChange` is delivered on the main queue, and this harness runs on it, so the
+        // semaphore cannot simply be waited on — pump the run loop instead.
+        let deadline = Date().addingTimeInterval(5)
+        while changed.wait(timeout: .now()) == .timedOut, Date() < deadline {
+            RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.02))
+        }
+
+        expectTrue(Date() < deadline, "the watcher reloaded instead of deadlocking")
+        expectEqual(store.userLayer.values["tab_size"], .int(7),
+                    "and the new value was actually picked up")
     }
 }
